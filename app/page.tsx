@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getUser, login, logout, signup, type User } from "@netlify/identity";
+import { getUser, handleAuthCallback, login, logout, signup, type User } from "@netlify/identity";
 import { ArrowUpRight, AtSign, BarChart3, Bell, CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, CircleAlert, Clock3, Download, FileText, FileUp, FolderKanban, Gauge, Inbox, Lightbulb, ListChecks, Mail, MessageSquare, MoreHorizontal, Paperclip, Plus, Search, Settings2, ShieldCheck, Sparkles, Tag, TicketCheck, Users } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip as ChartTooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
@@ -60,7 +60,7 @@ const statusColor:Record<string,string>={"On track":"#2c8b74","Watch":"#d39a38",
 export default function Home(){
   const [identity,setIdentity]=useState<User|null>(null);
   const [ready,setReady]=useState(false);
-  useEffect(()=>{getUser().then(user=>{setIdentity(user);setReady(true)})},[]);
+      useEffect(()=>{handleAuthCallback().then(result=>result?.user??getUser()).then(user=>{setIdentity(user);setReady(true)})},[]);
   if(!ready)return <main className="auth-shell"><section className="auth-card"><div className="brand-mark">S</div><h1>Opening Signal</h1><p>Checking your workspace access…</p></section></main>;
   if(!identity)return <IdentityGate onSignedIn={setIdentity}/>;
   return <WorkspaceApp/>;
