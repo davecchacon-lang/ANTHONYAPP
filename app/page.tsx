@@ -37,7 +37,7 @@ export default function Home() {
   useEffect(() => {
     handleAuthCallback().then((result) => result?.user ?? getUser()).then((user) => { setIdentity(user); setReady(true); });
   }, []);
-  if (!ready) return <main className="auth-shell"><section className="auth-card"><div className="brand-mark">S</div><h1>Opening Signal</h1><p>Checking your workspace access…</p></section></main>;
+  if (!ready) return <main className="auth-shell"><section className="auth-card"><div className="brand-mark" aria-hidden="true">👋</div><h1>Opening Signal</h1><p>Checking your workspace access…</p></section></main>;
   if (!identity) return <IdentityGate onSignedIn={setIdentity} />;
   return <WorkspaceApp identity={identity} />;
 }
@@ -62,7 +62,7 @@ function IdentityGate({ onSignedIn }: { onSignedIn: (user: User) => void }) {
   return (
     <main className="auth-shell">
       <section className="auth-card">
-        <div className="brand-mark">S</div>
+        <div className="brand-mark" aria-hidden="true">👋</div>
         <span>Signal Project Manager</span>
         <h1>{mode === "login" ? "Sign in to your workspace" : "Create your account"}</h1>
         <p>Sign in or create an account to get started.</p>
