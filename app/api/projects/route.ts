@@ -1,14 +1,30 @@
 import { getDb } from "@/db";
-import { projects, projectSteps } from "@/db/schema";
-import { requireWorkspaceRole } from "@/lib/access";
+import { projects } from "@/db/schema";
+import { requireUser } from "@/lib/access";
+
 export async function POST(request: Request) {
   try {
-    await requireWorkspaceRole(["Admin","Manager"]);
-    const p=await request.json() as {name?:string;description?:string;category?:string;owner?:string;due?:string;steps?:string[]};
-    if(!p.name?.trim()) return Response.json({error:"Project name is required"},{status:400});
-    const db=getDb();
-    const [project]=await db.insert(projects).values({name:p.name.trim(),description:p.description??"",category:p.category??"Operations",owner:p.owner??"Operations Team",due:p.due??"Not set",status:"On track",progress:0,color:"#5b6fd8"}).returning();
-    if(p.steps?.length) await db.insert(projectSteps).values(p.steps.filter(Boolean).map((title,i)=>({projectId:project.id,title,phase:i===0?"Plan":"Build",position:i+1})));
-    return Response.json({project},{status:201});
-  } catch { return Response.json({error:"Project could not be created."},{status:500}); }
+    await requireUser();
+    const p = (await request.json()) as Record<string, unknown>;
+    if (!String(p.name ?? "").trim()) return Response.json({ error: "Project name is required" }, { status: 400 });
+    const db = await getDb();
+    const [project] = await db
+      .insert(projects)
+      .values({
+        name: String(p.name),
+        description: String(p.description ?? ""),
+        category: String(p.category ?? "Operations"),
+        owner: String(p.owner ?? "Unassigned"),
+        status: "On track",
+        due: String(p.due ?? "Not set"),
+        color: "#5b6fd8",
+        progress: 0,
+        priority: String(p.priority ?? "Normal"),
+      })
+      .returning();
+    return Response.json({ project }, { status: 201 });
+  } catch (error) {
+    console.error(error);
+    return Response.json({ error: "Project could not be saved." }, { status: 500 });
+  }
 }

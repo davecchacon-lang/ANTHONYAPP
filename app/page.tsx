@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getUser, handleAuthCallback, login, logout, signup, type User } from "@netlify/identity";
-import { ArrowUpRight, AtSign, BarChart3, Bell, CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, CircleAlert, Clock3, Download, FileText, FileUp, FolderKanban, Gauge, Inbox, Lightbulb, ListChecks, Mail, MessageSquare, MoreHorizontal, Paperclip, Plus, Search, Settings2, ShieldCheck, Sparkles, Tag, TicketCheck, Users } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip as ChartTooltip, XAxis, YAxis } from "recharts";
+import { CalendarDays, CheckCircle2, ChevronRight, Clock3, FolderKanban, Gauge, ListChecks, Plus, Search, Settings2, Sparkles, Tag, TicketCheck, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
@@ -12,217 +11,509 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 
-type Project={id:number;name:string;description:string;category:string;owner:string;status:string;due:string;color:string;progress:number;expectedProgress:number;priority:string;tags:string};
-type Step={id:number;projectId:number;title:string;phase:string;status:string;assignee:string;due:string;position:number};
-type Member={id:number;name:string;email:string;role:string;access:string;status:string};
-type Ticket={id:number;kind:"request"|"idea"|"issue";title:string;description:string;category:string;priority:string;status:string;requester:string;owner:string;created:string;tags:string;exampleUrl:string;system:string};
-type TagDef={id:number;name:string;color:string;weight:number};
-type Task={id:number;title:string;project:string;objective:string;owner:string;due:string;status:"ready"|"waiting"|"done";waitingOn:string[];impact:number;notes?:string};
-type ProjectNote={id:number;projectId:number;body:string;author:string;mentions:string;channels:string;created:string};
-type ProjectDocument={id:number;projectId:number;name:string;contentType:string;size:number;uploadedBy:string;created:string};
+type Project = { id: number; name: string; description: string; category: string; owner: string; status: string; due: string; color: string; progress: number; priority: string };
+type Step = { id: number; projectId: number; title: string; status: string; assignee: string; due: string; position: number };
+type Task = { id: number; title: string; project: string; owner: string; due: string; status: string; impact: number };
+type Ticket = { id: number; kind: "request" | "issue" | "idea"; title: string; description: string; priority: string; status: string; requester: string; owner: string; created: string };
+type TicketKind = "request" | "issue" | "idea";
 
-const sampleProjects:Project[]=[
-  {id:1,name:"DAG Client Portal",description:"Launch a secure, clear client experience from intake through resolution.",category:"Client Experience",owner:"Operations Team",status:"On track",due:"Oct 18",color:"#5b6fd8",progress:68,expectedProgress:62,priority:"High",tags:'["Customer impact"]'},
-  {id:2,name:"ATLAS Campaign Engine",description:"Connect campaign planning, content, execution, and performance signals.",category:"Technology",owner:"Growth Team",status:"Watch",due:"Nov 7",color:"#8a5bd8",progress:44,expectedProgress:52,priority:"High",tags:'["Revenue"]'},
-  {id:3,name:"Compliance Program",description:"Standardize policy, training, review, and audit readiness.",category:"Legal & Compliance",owner:"Compliance Team",status:"On track",due:"Dec 2",color:"#2c8b74",progress:57,expectedProgress:51,priority:"Urgent",tags:'["Compliance"]'},
-  {id:4,name:"Customer Onboarding",description:"Reduce time-to-value and make every handoff visible.",category:"Operations",owner:"Client Success",status:"At risk",due:"Sep 30",color:"#d06a5b",progress:31,expectedProgress:58,priority:"Urgent",tags:'["Customer impact"]'},
+const nav: [string, string, React.ElementType][] = [
+  ["dashboard", "Dashboard", Gauge],
+  ["my-work", "My work", ListChecks],
+  ["projects", "Projects", FolderKanban],
+  ["calendar", "Calendar", CalendarDays],
+  ["tickets", "Tickets", TicketCheck],
 ];
-const sampleSteps:Step[]=[
-  {id:1,projectId:1,title:"Approve intake experience",phase:"Plan",status:"done",assignee:"Operations Team",due:"Sep 12",position:1},
-  {id:2,projectId:1,title:"Complete security review",phase:"Build",status:"in_progress",assignee:"Technology Team",due:"Sep 20",position:2},
-  {id:3,projectId:1,title:"Pilot with internal users",phase:"Launch",status:"todo",assignee:"Client Success",due:"Oct 4",position:3},
-  {id:4,projectId:2,title:"Lock Salesforce data map",phase:"Plan",status:"in_progress",assignee:"Growth Team",due:"Sep 16",position:1},
-  {id:5,projectId:4,title:"Resolve intake handoff gap",phase:"Build",status:"blocked",assignee:"Client Success",due:"Sep 17",position:1},
-];
-const sampleTasks:Task[]=[
-  {id:1,title:"Approve production release checklist",project:"ATLAS Campaign Engine",objective:"Campaign orchestration v2",owner:"Anthony",due:"Today",status:"ready",waitingOn:[],impact:3},
-  {id:2,title:"Review client portal intake copy",project:"DAG Client Portal",objective:"Client portal launch",owner:"Anthony",due:"Tomorrow",status:"ready",waitingOn:[],impact:1},
-  {id:3,title:"Confirm Salesforce field mapping",project:"ATLAS Campaign Engine",objective:"Campaign orchestration v2",owner:"Anthony",due:"Sep 16",status:"ready",waitingOn:[],impact:2},
-  {id:4,title:"Legal review of SMS consent language",project:"DAG Client Portal",objective:"Client portal launch",owner:"Compliance Team",due:"Sep 11",status:"waiting",waitingOn:["Compliance Team"],impact:3},
-  {id:5,title:"Vendor security questionnaire",project:"DAG Client Portal",objective:"Client portal launch",owner:"Technology Team",due:"Sep 18",status:"waiting",waitingOn:["Vendor support"],impact:1},
-];
-const sampleTickets:Ticket[]=[
-  {id:1,kind:"request",title:"Add bulk document upload",description:"Allow intake staff to upload a complete document package.",category:"Product",priority:"High",status:"In review",requester:"Client Success",owner:"Product Team",created:"Today",tags:'["Customer impact"]',exampleUrl:"",system:""},
-  {id:2,kind:"request",title:"Update weekly portfolio export",description:"Include owner and risk signal columns.",category:"Reporting",priority:"Normal",status:"New",requester:"Operations",owner:"Unassigned",created:"Yesterday",tags:"[]",exampleUrl:"",system:""},
-  {id:3,kind:"idea",title:"AI-generated project brief",description:"Turn milestones and decisions into a weekly executive summary.",category:"Automation",priority:"High",status:"Evaluating",requester:"Leadership",owner:"Product Team",created:"Today",tags:'["Quick win"]',exampleUrl:"",system:""},
-  {id:4,kind:"idea",title:"Meeting-to-project converter",description:"Create a draft plan from meeting notes and assigned actions.",category:"Collaboration",priority:"Normal",status:"Planned",requester:"Operations",owner:"Technology Team",created:"Sep 12",tags:"[]",exampleUrl:"",system:""},
-  {id:5,kind:"issue",title:"Salesforce activity timeline fails to load",description:"The timeline spins indefinitely on some account records.",category:"Bug",priority:"Urgent",status:"New",requester:"Sales Team",owner:"Unassigned",created:"Today",tags:'["Customer impact"]',exampleUrl:"https://example.com/account/123",system:"Salesforce"},
-];
-const sampleTags:TagDef[]=[{id:1,name:"Customer impact",color:"#5b6fd8",weight:4},{id:2,name:"Revenue",color:"#2c8b74",weight:4},{id:3,name:"Compliance",color:"#d05d59",weight:5},{id:4,name:"Quick win",color:"#d39a38",weight:2}];
-const nav=[["dashboard","Dashboard",Gauge],["my-work","My work",ListChecks],["projects","Projects",FolderKanban],["calendar","Calendar",CalendarDays],["requests","Requests",TicketCheck],["ideas","Ideas",Lightbulb],["issues","Issues",CircleAlert],["team","Team",Users],["manager","Manager",BarChart3]] as const;
-const roleCopy:Record<string,string>={Admin:"Full workspace control",Manager:"Manage projects and people",Member:"Create and update assigned work",Viewer:"Read-only access"};
-const statusColor:Record<string,string>={"On track":"#2c8b74","Watch":"#d39a38","At risk":"#d05d59"};
 
-export default function Home(){
-  const [identity,setIdentity]=useState<User|null>(null);
-  const [ready,setReady]=useState(false);
-      useEffect(()=>{handleAuthCallback().then(result=>result?.user??getUser()).then(user=>{setIdentity(user);setReady(true)})},[]);
-  if(!ready)return <main className="auth-shell"><section className="auth-card"><div className="brand-mark">S</div><h1>Opening Signal</h1><p>Checking your workspace access…</p></section></main>;
-  if(!identity)return <IdentityGate onSignedIn={setIdentity}/>;
-  return <WorkspaceApp identity={identity}/>;
+const statusColor: Record<string, string> = { "On track": "#2c8b74", Watch: "#d39a38", "At risk": "#d05d59" };
+const kindLabel: Record<TicketKind, string> = { request: "Request", issue: "Issue", idea: "Idea" };
+const kindPrefix: Record<TicketKind, string> = { request: "REQ-", issue: "ISS-", idea: "IDA-" };
+
+export default function Home() {
+  const [identity, setIdentity] = useState<User | null>(null);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    handleAuthCallback().then((result) => result?.user ?? getUser()).then((user) => { setIdentity(user); setReady(true); });
+  }, []);
+  if (!ready) return <main className="auth-shell"><section className="auth-card"><div className="brand-mark">S</div><h1>Opening Signal</h1><p>Checking your workspace access…</p></section></main>;
+  if (!identity) return <IdentityGate onSignedIn={setIdentity} />;
+  return <WorkspaceApp identity={identity} />;
 }
 
-function WorkspaceApp({identity}:{identity:User}){
-  const [projects,setProjects]=useState(sampleProjects);
-  const [steps,setSteps]=useState(sampleSteps);
-  const [tasks,setTasks]=useState(sampleTasks);
-  const [tickets,setTickets]=useState(sampleTickets);
-  const [tags,setTags]=useState(sampleTags);
-  const [members,setMembers]=useState<Member[]>([{id:1,name:"Workspace Owner",email:"owner@workspace.com",role:"Admin",access:"All projects",status:"Active"}]);
-  const [notes,setNotes]=useState<ProjectNote[]>([]);
-  const [documents,setDocuments]=useState<ProjectDocument[]>([]);
-  const [view,setView]=useState("dashboard");
-  const [query,setQuery]=useState("");
-  const [projectOpen,setProjectOpen]=useState(false);
-  const [taskOpen,setTaskOpen]=useState(false);
-  const [ticketOpen,setTicketOpen]=useState<"request"|"idea"|"issue"|null>(null);
-  const [selectedTicket,setSelectedTicket]=useState<Ticket|null>(null);
-  const [memberOpen,setMemberOpen]=useState(false);
-  const [slackOpen,setSlackOpen]=useState(false);
-  const [integrations,setIntegrations]=useState({slack:false,email:false});
-  const [selected,setSelected]=useState<Project|null>(null);
-  const [selectedTask,setSelectedTask]=useState<Task|null>(null);
-  const [stepOpen,setStepOpen]=useState(false);
-  const [projectForm,setProjectForm]=useState({name:"",description:"",category:"Operations",owner:"Operations Team",due:"",steps:"Discovery\nBuild\nReview\nLaunch"});
-  const [ticketForm,setTicketForm]=useState({title:"",description:"",category:"General",priority:"Normal",tags:"[]",system:"",exampleUrl:""});
-  const [memberForm,setMemberForm]=useState({name:"",email:"",role:"Member",access:"Assigned projects",delivery:"Slack"});
-  const [taskForm,setTaskForm]=useState({title:"",project:"DAG Client Portal",owner:"Unassigned",due:"2026-09-15",impact:"1"});
-  useEffect(()=>{Promise.all([fetch("/api/workspace").then(r=>r.ok?r.json():null),fetch("/api/tasks").then(r=>r.ok?r.json():null),fetch("/api/integrations/status").then(r=>r.ok?r.json():null)]).then(([w,t,i])=>{if(w?.projects?.length)setProjects(w.projects);if(w?.steps)setSteps(w.steps);if(w?.members?.length)setMembers(w.members);if(w?.tickets?.length)setTickets(w.tickets);if(w?.tags?.length)setTags(w.tags);if(w?.notes)setNotes(w.notes);if(w?.documents)setDocuments(w.documents);if(t?.tasks?.length)setTasks(t.tasks.map((x:Task&{waitingOn:string})=>({...x,waitingOn:typeof x.waitingOn==="string"?JSON.parse(x.waitingOn):x.waitingOn})));if(i)setIntegrations({slack:Boolean(i.slack?.connected),email:Boolean(i.email?.connected)});}).catch(()=>undefined)},[]);
-  const filteredProjects=projects.filter(p=>(p.name+p.category+p.owner).toLowerCase().includes(query.toLowerCase()));
-  const ready=tasks.filter(t=>t.status==="ready").sort((a,b)=>b.impact-a.impact);
-  const waiting=tasks.filter(t=>t.status==="waiting").sort((a,b)=>b.impact-a.impact);
-  const requestTickets=tickets.filter(t=>t.kind==="request");
-  const ideas=tickets.filter(t=>t.kind==="idea");
-  const issues=tickets.filter(t=>t.kind==="issue");
-  const healthData=["On track","Watch","At risk"].map(name=>({name,value:projects.filter(p=>p.status===name).length,color:statusColor[name]}));
-  const categoryData=Array.from(new Set(projects.map(p=>p.category))).map(category=>({category:category.split(" ")[0],projects:projects.filter(p=>p.category===category).length}));
-  function toggleTask(task:Task){const status=task.status==="done"?"ready":"done";setTasks(x=>x.map(t=>t.id===task.id?{...t,status}:t));fetch("/api/tasks/"+task.id,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({status})}).catch(()=>undefined);toast(status==="done"?"Task completed":"Task reopened",{description:"Portfolio progress was recalculated."})}
-  async function createProject(){if(!projectForm.name.trim())return;const temp:Project={id:Date.now(),name:projectForm.name,description:projectForm.description,category:projectForm.category,owner:projectForm.owner,status:"On track",due:projectForm.due||"Not set",color:"#5b6fd8",progress:0,expectedProgress:0,priority:"Normal",tags:"[]"};setProjects(x=>[temp,...x]);const newSteps=projectForm.steps.split("\n").filter(Boolean).map((title,i)=>({id:Date.now()+i,projectId:temp.id,title,phase:i===0?"Plan":"Build",status:"todo",assignee:"Unassigned",due:"Not set",position:i+1}));setSteps(x=>[...x,...newSteps]);setProjectOpen(false);toast("Project created",{description:"The plan and steps are ready for assignment."});const r=await fetch("/api/projects",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({...projectForm,steps:newSteps.map(s=>s.title)})});if(r.ok){const d=await r.json();setProjects(x=>x.map(p=>p.id===temp.id?d.project:p));setSteps(x=>x.map(s=>s.projectId===temp.id?{...s,projectId:d.project.id}:s))}}
-  async function createTicket(){if(!ticketOpen||!ticketForm.title.trim())return;const kind=ticketOpen;const temp:Ticket={id:Date.now(),kind,title:ticketForm.title,description:ticketForm.description,category:ticketForm.category,priority:ticketForm.priority,status:"New",requester:"Workspace member",owner:"Unassigned",created:"Today",tags:ticketForm.tags,system:ticketForm.system,exampleUrl:ticketForm.exampleUrl};setTickets(x=>[temp,...x]);setTicketOpen(null);setTicketForm({title:"",description:"",category:"General",priority:"Normal",tags:"[]",system:"",exampleUrl:""});toast(kind==="idea"?"Idea captured":kind==="issue"?"Issue reported":"Request submitted",{description:"It now has an ownerable workflow and history."});const r=await fetch("/api/tickets",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(temp)});if(r.ok){const d=await r.json();setTickets(x=>x.map(t=>t.id===temp.id?d.ticket:t))}}
-  async function inviteMember(){if(!memberForm.email.includes("@"))return;const r=await fetch("/api/members",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(memberForm)});const d=await r.json();if(r.ok){setMembers(x=>[...x,d.member]);setMemberOpen(false);const sent=[d.slackSent&&"Slack",d.emailSent&&"email"].filter(Boolean);const reasons:Record<string,string>={slack_not_configured:"Signal’s Slack app still needs its bot token.",slack_user_not_found:"No Slack account matched that email address.",slack_lookup_failed:"Slack could not verify that email address.",slack_delivery_failed:"Slack rejected the direct message.",email_not_configured:"Invitation email is not connected yet.",provider_rejected:"The email provider rejected the message."};toast(sent.length?"Invitation sent via "+sent.join(" and "):"Member added — invitation not delivered",{description:sent.length?memberForm.email+" received the workspace invitation.":reasons[d.slackReason]||reasons[d.emailReason]||"The member was saved, but no message was sent."})}else toast.error(d.error||"Invitation failed")}
-  async function createTask(){if(!taskForm.title.trim())return;const temp:Task={id:Date.now(),title:taskForm.title,project:taskForm.project,objective:"Project plan",owner:taskForm.owner,due:taskForm.due,status:"ready",waitingOn:[],impact:Number(taskForm.impact),notes:""};setTasks(x=>[temp,...x]);setTaskOpen(false);setTaskForm({title:"",project:projects[0]?.name||"General",owner:"Unassigned",due:"2026-09-15",impact:"1"});toast("Task added",{description:"It is now assigned and visible on the calendar."});const r=await fetch("/api/tasks",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(temp)});if(r.ok){const d=await r.json();setTasks(x=>x.map(t=>t.id===temp.id?d.task:t))}}
-  async function addStep(value:{title:string;assignee:string;due:string;phase:string}){if(!selected||!value.title.trim())return;const temp:Step={id:Date.now(),projectId:selected.id,title:value.title,phase:value.phase,status:"todo",assignee:value.assignee,due:value.due,position:steps.filter(s=>s.projectId===selected.id).length+1};setSteps(x=>[...x,temp]);setStepOpen(false);toast("Step added",{description:"The project plan has been updated."});const r=await fetch("/api/steps",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(temp)});if(r.ok){const d=await r.json();setSteps(x=>x.map(s=>s.id===temp.id?d.step:s))}}
-  async function saveTask(task:Task){setTasks(x=>x.map(t=>t.id===task.id?task:t));setSelectedTask(null);await fetch("/api/tasks/"+task.id,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({owner:task.owner,due:task.due,notes:task.notes||""})});toast("Task updated",{description:"Assignment, due date, and notes were saved."})}
-  async function saveTicket(ticket:Ticket){const r=await fetch("/api/tickets/"+ticket.id,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify(ticket)});if(r.ok){const d=await r.json();setTickets(x=>x.map(t=>t.id===ticket.id?d.ticket:t));setSelectedTicket(null);toast("Ticket updated")}}
-  async function convertTicket(ticket:Ticket){const r=await fetch("/api/tickets/"+ticket.id+"/convert",{method:"POST"});const d=await r.json();if(r.ok){setProjects(x=>[d.project,...x]);setTickets(x=>x.map(t=>t.id===ticket.id?d.ticket:t));setSelectedTicket(null);setSelected(d.project);setView("projects");toast("Converted to project",{description:"The new project is ready for a plan and assignments."})}else toast.error(d.error||"Conversion failed")}
-  async function updateProject(project:Project){const r=await fetch("/api/projects/"+project.id,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify(project)});if(r.ok){const d=await r.json();setProjects(x=>x.map(p=>p.id===project.id?d.project:p));setSelected(d.project);toast("Project priorities updated")}}
-  async function createTag(value:{name:string;color:string;weight:number}){const r=await fetch("/api/tags",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(value)});const d=await r.json();if(r.ok){setTags(x=>[...x,d.tag]);toast("Tag created")}else toast.error(d.error||"Tag could not be created")}
-  function openProject(p:Project){setSelected(p);setView("projects")}
-  const rank:Record<string,number>={"At risk":2,Watch:1,"On track":0};
-
-  useEffect(()=>{
-    const context=document.modelContext;
-    if(!context?.registerTool)return;
-    const lifecycle=new AbortController();
-    try{
-      void Promise.resolve(context.registerTool({
-        name:"read_portfolio_health",title:"Read portfolio health",description:"Summarize current Signal projects by status and return projects that need attention.",
-        inputSchema:{type:"object",properties:{},additionalProperties:false},annotations:{readOnlyHint:true,untrustedContentHint:false},
-        execute(){return{totals:Object.fromEntries(["On track","Watch","At risk"].map(status=>[status,projects.filter(p=>p.status===status).length])),attention:projects.filter(p=>p.status!=="On track").map(p=>({id:p.id,name:p.name,status:p.status,progress:p.progress}))}}
-      },{signal:lifecycle.signal})).catch(()=>undefined);
-      void Promise.resolve(context.registerTool({
-        name:"create_workspace_request",title:"Create workspace request",description:"Create a new operational request ticket in Signal.",
-        inputSchema:{type:"object",properties:{title:{type:"string"},description:{type:"string"},priority:{type:"string",enum:["Low","Normal","High","Urgent"]}},required:["title"],additionalProperties:false},annotations:{readOnlyHint:false,untrustedContentHint:false},
-        async execute(input){const value=input as {title?:string;description?:string;priority?:string};if(!value.title?.trim())throw new Error("title is required");const response=await fetch("/api/tickets",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({kind:"request",title:value.title,description:value.description||"",category:"General",priority:value.priority||"Normal"})});if(!response.ok)throw new Error("request could not be created");const data=await response.json();setTickets(items=>[data.ticket,...items]);return{id:data.ticket.id,status:"created",kind:"request"}}
-      },{signal:lifecycle.signal})).catch(()=>undefined);
-    }catch{}
-    return()=>lifecycle.abort();
-  },[projects]);
-
-  return <div className="app-shell robust"><header className="topbar"><div className="brand"><span className="brand-mark"><Sparkles size={17}/></span><span>SIGNAL</span><em>WORK OS</em></div><div className="search"><Search size={17}/><input aria-label="Search workspace" placeholder="Search projects, tasks, tickets…" value={query} onChange={e=>setQuery(e.target.value)}/><kbd>⌘ K</kbd></div><div className="top-actions"><button className="icon-button" aria-label="Inbox"><Inbox size={18}/><span className="notification-dot"/></button><Button onClick={()=>view==="projects"||view==="dashboard"?setProjectOpen(true):view==="my-work"?setTaskOpen(true):setTicketOpen(view==="ideas"?"idea":view==="issues"?"issue":"request")}><Plus/>Create</Button><span className="avatar">{(identity.name||identity.email||"?").split(/[ @.]/).filter(Boolean).slice(0,2).map(s=>s[0].toUpperCase()).join("")}</span></div></header>
-    <Tabs value={view} onValueChange={setView} className="workspace"><aside className="rail"><div className="rail-label">Workspace</div><TabsList className="rail-tabs">{nav.map(([id,label,Icon])=><TabsTrigger value={id} key={id}><Icon/>{label}{id==="requests"&&<span className="count">{requestTickets.filter(t=>t.status==="New").length}</span>}</TabsTrigger>)}</TabsList><div className="rail-bottom"><button onClick={()=>setSlackOpen(true)}><MessageSquare/><span><strong>Slack & email</strong><small>{integrations.slack&&integrations.email?"Connected":integrations.slack||integrations.email?"Partially connected":"Setup required"}</small></span><ChevronRight/></button><button onClick={()=>logout().then(()=>window.location.reload())}><Settings2/>Sign out</button></div></aside>
-      <main className="content">
-        <TabsContent value="dashboard"><PageHead eyebrow={new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})} title={(new Date().getHours()<12?"Good morning":new Date().getHours()<18?"Good afternoon":"Good evening")+", "+(n=>n.charAt(0).toUpperCase()+n.slice(1))((identity.name||identity.email||"there").split(/[@ ]/)[0])+"."} subtitle="Here’s where work needs attention." action={<Button onClick={()=>setProjectOpen(true)}><Plus/>New project</Button>}/><div className="metric-grid"><Metric label="Active projects" value={projects.length} detail={projects.filter(p=>p.status==="At risk").length+" needs attention"} icon={FolderKanban}/><Metric label="On schedule" value={projects.filter(p=>p.progress>=p.expectedProgress).length} detail={projects.filter(p=>p.progress<p.expectedProgress).length+" behind plan"} icon={Clock3}/><Metric label="Open requests" value={requestTickets.filter(t=>t.status!=="Closed").length} detail={requestTickets.filter(t=>["High","Urgent"].includes(t.priority)).length+" high priority"} icon={TicketCheck}/><Metric label="Open issues" value={issues.filter(t=>t.status!=="Closed").length} detail={issues.filter(t=>t.priority==="Urgent").length+" urgent"} icon={CircleAlert}/></div><div className="dashboard-grid"><section className="panel chart-panel"><PanelTitle title="Portfolio health" subtitle="System-inferred from schedule and dependencies"/><div className="donut-wrap"><ResponsiveContainer width="55%" height={230}><PieChart><Pie data={healthData} dataKey="value" innerRadius={58} outerRadius={83} paddingAngle={4}>{healthData.map(x=><Cell key={x.name} fill={x.color}/>)}</Pie><ChartTooltip/></PieChart></ResponsiveContainer><div className="health-legend">{healthData.map(x=><div key={x.name}><i style={{background:x.color}}/><span>{x.name}</span><strong>{x.value}</strong></div>)}</div></div></section><section className="panel chart-panel"><PanelTitle title="Projects by category" subtitle="Where the portfolio is concentrated"/><ResponsiveContainer width="100%" height={230}><BarChart data={categoryData} margin={{top:18,right:6,left:-24,bottom:0}}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e7eaf0"/><XAxis dataKey="category" axisLine={false} tickLine={false} fontSize={11}/><YAxis allowDecimals={false} axisLine={false} tickLine={false} fontSize={11}/><ChartTooltip/><Bar dataKey="projects" fill="#5b6fd8" radius={[6,6,0,0]}/></BarChart></ResponsiveContainer></section></div><PriorityDashboard projects={projects} tickets={tickets} onProject={openProject} onTicket={setSelectedTicket}/><SchedulePanel projects={projects} onProject={openProject}/></TabsContent>
-        <TabsContent value="my-work"><PageHead eyebrow="Your day" title="My work" subtitle="Everything actionable, without project hunting." action={<Button onClick={()=>setTaskOpen(true)}><Plus/>Add task</Button>}/><WorkSection title="Ready to move" subtitle="Sorted by downstream impact" tasks={ready} toggle={toggleTask} open={setSelectedTask}/><WorkSection title="Waiting on others" subtitle="Blocked work stays out of your active queue" tasks={waiting} toggle={toggleTask} open={setSelectedTask} waiting/></TabsContent>
-        <TabsContent value="projects"><PageHead eyebrow="Portfolio" title="Projects" subtitle={projects.length+" active projects across "+new Set(projects.map(p=>p.category)).size+" categories."} action={<Button onClick={()=>setProjectOpen(true)}><Plus/>New project</Button>}/><div className="filter-row"><button className="filter-active">All projects <span>{projects.length}</span></button>{["On track","Watch","At risk"].map(s=><button key={s}>{s} <span>{projects.filter(p=>p.status===s).length}</span></button>)}</div><div className="project-grid">{filteredProjects.map(p=><button className="project-card" key={p.id} onClick={()=>setSelected(p)}><div className="project-card-top"><span className="project-icon" style={{background:p.color}}>{p.name[0]}</span><MoreHorizontal/></div><h3>{p.name}</h3><p>{p.description}</p><div className="project-tags"><span><Tag/>{p.category}</span><span className={"status-text status-"+p.status.replace(" ","-").toLowerCase()}>{p.status}</span></div><div className="project-progress"><div><span>Progress</span><strong>{p.progress}%</strong></div><div><i style={{width:p.progress+"%",background:p.color}}/></div></div><footer><span>{p.owner}</span><time><Clock3/>{p.due}</time></footer></button>)}</div></TabsContent>
-        <TabsContent value="calendar"><CalendarView tasks={tasks} projects={projects} onTask={setSelectedTask}/></TabsContent>
-        <TabsContent value="requests"><TicketView title="Requests" subtitle="Operational asks with clear ownership and service levels." tickets={requestTickets} onCreate={()=>setTicketOpen("request")} onEdit={setSelectedTicket} kind="request"/></TabsContent>
-        <TabsContent value="ideas"><IdeaView tickets={ideas} onCreate={()=>setTicketOpen("idea")} onEdit={setSelectedTicket}/></TabsContent>
-        <TabsContent value="issues"><TicketView title="Issues" subtitle="Track defects by system, example, priority, and owner." tickets={issues} onCreate={()=>setTicketOpen("issue")} onEdit={setSelectedTicket} kind="issue"/></TabsContent>
-        <TabsContent value="team"><PageHead eyebrow="Administration" title="Team & access" subtitle="Every person is tied to an email, role, and access scope." action={<Button onClick={()=>setMemberOpen(true)}><Plus/>Invite member</Button>}/><div className="role-cards">{Object.entries(roleCopy).map(([role,copy])=><div key={role}><ShieldCheck/><strong>{role}</strong><span>{copy}</span></div>)}</div><section className="panel table-panel"><Table><TableHeader><TableRow><TableHead>Person</TableHead><TableHead>Role</TableHead><TableHead>Access</TableHead><TableHead>Status</TableHead><TableHead></TableHead></TableRow></TableHeader><TableBody>{members.map(m=><TableRow key={m.id}><TableCell><div className="person-cell"><span className="avatar">{m.name.split(" ").map(x=>x[0]).slice(0,2).join("")}</span><span><strong>{m.name}</strong><small>{m.email}</small></span></div></TableCell><TableCell><span className={"role role-"+m.role.toLowerCase()}>{m.role}</span></TableCell><TableCell>{m.access}</TableCell><TableCell><span className="active-status">{m.status}</span></TableCell><TableCell><button className="more"><MoreHorizontal/></button></TableCell></TableRow>)}</TableBody></Table></section><div className="access-note"><ShieldCheck/><div><strong>Access is enforced by signed-in email.</strong><span>Admins manage people and settings. Managers create and manage projects. Members update assigned work. Viewers have read-only access.</span></div></div></TabsContent>
-        <TabsContent value="manager"><PageHead eyebrow="Portfolio pulse" title="Manager view" subtitle="Health shows the evidence that produced it."/><section className="panel manager-board"><div className="manager-head"><span>Project</span><span>System health</span><span>Signal</span><span>Progress</span><span>Due</span></div>{[...projects].sort((a,b)=>rank[b.status]-rank[a.status]).map(p=><button className="manager-row" key={p.id} onClick={()=>setSelected(p)}><span><i style={{background:p.color}}/><b>{p.name}</b><small>{p.category} · {p.priority}</small></span><Health value={p.status}/><span className="signal-copy">{p.progress<p.expectedProgress?(p.expectedProgress-p.progress)+" points behind plan":p.status==="Watch"?"2 dependencies due this week":"On or ahead of plan"}</span><span><b>{p.progress}%</b><i className="micro-progress"><em style={{width:p.progress+"%"}}/></i></span><time>{p.due}</time></button>)}</section><TagManager tags={tags} onCreate={createTag}/></TabsContent>
-      </main></Tabs>
-    <ProjectDrawer project={selected} setProject={setSelected} steps={steps} members={members} notes={notes} setNotes={setNotes} documents={documents} setDocuments={setDocuments} tasks={tasks} setTasks={setTasks} tags={tags} updateProject={updateProject} addStep={()=>setStepOpen(true)}/>
-    <ProjectDialog open={projectOpen} setOpen={setProjectOpen} form={projectForm} setForm={setProjectForm} save={createProject}/><TaskDialog open={taskOpen} setOpen={setTaskOpen} form={taskForm} setForm={setTaskForm} projects={projects} members={members} save={createTask}/><StepDialog open={stepOpen} setOpen={setStepOpen} members={members} save={addStep}/><TaskEditDialog task={selectedTask} setTask={setSelectedTask} members={members} save={saveTask}/><TicketDialog kind={ticketOpen} setKind={setTicketOpen} form={ticketForm} setForm={setTicketForm} tags={tags} save={createTicket}/><TicketEditDialog ticket={selectedTicket} setTicket={setSelectedTicket} members={members} tags={tags} save={saveTicket} convert={convertTicket}/><MemberDialog open={memberOpen} setOpen={setMemberOpen} form={memberForm} setForm={setMemberForm} save={inviteMember}/>
-    <IntegrationDialog open={slackOpen} setOpen={setSlackOpen} status={integrations}/><Toaster richColors position="bottom-right"/></div>
-}
-
-function PageHead({eyebrow,title,subtitle,action}:{eyebrow:string;title:string;subtitle:string;action?:React.ReactNode}){return <section className="page-heading"><div><p>{eyebrow}</p><h1>{title}</h1><span>{subtitle}</span></div>{action}</section>}
-function PanelTitle({title,subtitle}:{title:string;subtitle:string}){return <div className="panel-title"><div><h2>{title}</h2><span>{subtitle}</span></div><button><MoreHorizontal/></button></div>}
-function Metric({label,value,detail,icon:Icon}:{label:string;value:number;detail:string;icon:React.ElementType}){return <div className="metric"><span><Icon/></span><div><small>{label}</small><strong>{value}</strong><em>{detail}</em></div></div>}
-function Health({value}:{value:string}){return <span className={"health health-"+value.replace(" ","-").toLowerCase()}><i/>{value}</span>}
-function ProjectMini({project,onClick}:{project:Project;onClick:()=>void}){return <button className="project-mini" onClick={onClick}><i style={{background:project.color}}/><span><strong>{project.name}</strong><small>{project.status==="At risk"?"Blocked milestone · 3 people waiting":"2 dependencies due this week"}</small></span><Health value={project.status}/><ChevronRight/></button>}
-function Activity({icon:Icon,text,meta,tone=""}:{icon:React.ElementType;text:string;meta:string;tone?:string}){return <div className="activity"><span className={tone}><Icon/></span><div><strong>{text}</strong><small>{meta}</small></div></div>}
-function WorkSection({title,subtitle,tasks,toggle,open,waiting=false}:{title:string;subtitle:string;tasks:Task[];toggle:(t:Task)=>void;open:(t:Task)=>void;waiting?:boolean}){return <section className="section-block"><div className="section-title"><div><h2>{title}</h2><span>{subtitle}</span></div><span className="plain-count">{tasks.length}</span></div><div className={"task-list "+(waiting?"subdued":"")}>{tasks.map(t=><article className="task-row" key={t.id}><Checkbox onCheckedChange={()=>toggle(t)} checked={t.status==="done"}/><div className="task-copy"><div className="breadcrumb"><span>{t.project}</span><ChevronRight/><span>{t.objective}</span></div><h3>{t.title}</h3><div className="task-meta"><span><Users/>{t.owner}</span><span><Clock3/>{t.due}</span>{waiting&&<span>Waiting on {t.waitingOn.join(", ")}</span>}</div></div>{t.impact>0&&<div className={"impact "+(t.impact>=3?"impact-high":"")}><Users/><strong>{t.impact}</strong><span>people waiting</span></div>}<button className="row-open" onClick={()=>open(t)} aria-label={"Edit "+t.title}><ChevronRight/></button></article>)}{!tasks.length&&<div className="empty-plan"><CheckCircle2/><strong>Nothing here</strong><span>You’re clear.</span></div>}</div></section>}
-function TicketView({title,subtitle,tickets,onCreate,onEdit,kind}:{title:string;subtitle:string;tickets:Ticket[];onCreate:()=>void;onEdit:(t:Ticket)=>void;kind:string}){return <><PageHead eyebrow="Intake queue" title={title} subtitle={subtitle} action={<Button onClick={onCreate}><Plus/>New {kind}</Button>}/><div className="ticket-stats"><div><strong>{tickets.filter(t=>t.status==="New").length}</strong><span>New</span></div><div><strong>{tickets.filter(t=>["In review","Investigating"].includes(t.status)).length}</strong><span>In progress</span></div><div><strong>{tickets.filter(t=>["High","Urgent"].includes(t.priority)).length}</strong><span>High priority</span></div></div><section className="panel ticket-list"><div className="ticket-head"><span>ID</span><span>{kind==="issue"?"Issue":"Request"}</span><span>Created by</span><span>{kind==="issue"?"System":"Category"}</span><span>Priority</span><span>Status</span><span>Owner</span></div>{tickets.map(t=><button className="ticket-row" key={t.id} onClick={()=>onEdit(t)}><span>{(kind==="issue"?"ISS-":"REQ-")+String(t.id).padStart(3,"0")}</span><span><strong>{t.title}</strong><small>{kind==="issue"&&t.exampleUrl?"Example attached · ":""}{t.description}</small></span><span className="creator-cell"><span className="avatar">{t.requester.split(" ").map(x=>x[0]).slice(0,2).join("")}</span>{t.requester}</span><span className="category-chip">{kind==="issue"?(t.system||"Other"):t.category}</span><span className={"priority priority-"+t.priority.toLowerCase()}>{t.priority}</span><span>{t.status}</span><span>{t.owner}</span></button>)}</section></>}
-function IdeaView({tickets,onCreate,onEdit}:{tickets:Ticket[];onCreate:()=>void;onEdit:(t:Ticket)=>void}){const cols=["New","Evaluating","Planned"];return <><PageHead eyebrow="Innovation pipeline" title="Ideas" subtitle="Capture, evaluate, and turn good thinking into planned work." action={<Button onClick={onCreate}><Plus/>Submit idea</Button>}/><div className="idea-board">{cols.map(col=><section key={col}><header><h2>{col}</h2><span>{tickets.filter(t=>t.status===col).length}</span></header>{tickets.filter(t=>t.status===col).map(t=><button className="idea-card" key={t.id} onClick={()=>onEdit(t)}><span className="category-chip">{t.category}</span><h3>{t.title}</h3><p>{t.description}</p><footer><span>{t.requester}</span><span className={"priority priority-"+t.priority.toLowerCase()}>{t.priority}</span></footer></button>)}<button className="add-card" onClick={onCreate}><Plus/>Add idea</button></section>)}</div></>}
-function ProjectDialog({open,setOpen,form,setForm,save}:{open:boolean;setOpen:(v:boolean)=>void;form:any;setForm:(v:any)=>void;save:()=>void}){return <Dialog open={open} onOpenChange={setOpen}><DialogContent className="wide-dialog"><DialogHeader><DialogTitle>Create a project</DialogTitle><DialogDescription>Start with the outcome, then give the team a usable first plan.</DialogDescription></DialogHeader><div className="form-stack"><label>Project name<Input autoFocus value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="e.g. New client onboarding"/></label><label>Outcome or description<Textarea value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="What will be different when this is complete?"/></label><div className="form-row"><label>Category<Select value={form.category} onValueChange={v=>setForm({...form,category:v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{["Operations","Technology","Client Experience","Legal & Compliance","Marketing"].map(x=><SelectItem value={x} key={x}>{x}</SelectItem>)}</SelectContent></Select></label><label>Owner<Input value={form.owner} onChange={e=>setForm({...form,owner:e.target.value})}/></label></div><label>Initial plan — one step per line<Textarea className="steps-input" value={form.steps} onChange={e=>setForm({...form,steps:e.target.value})}/></label></div><DialogFooter><Button variant="outline" onClick={()=>setOpen(false)}>Cancel</Button><Button onClick={save}>Create project</Button></DialogFooter></DialogContent></Dialog>}
-function TaskDialog({open,setOpen,form,setForm,projects,members,save}:{open:boolean;setOpen:(v:boolean)=>void;form:any;setForm:(v:any)=>void;projects:Project[];members:Member[];save:()=>void}){return <Dialog open={open} onOpenChange={setOpen}><DialogContent><DialogHeader><DialogTitle>Add a task</DialogTitle><DialogDescription>Assign it now; Signal handles the worklist and calendar automatically.</DialogDescription></DialogHeader><div className="form-stack"><label>Task<Input autoFocus value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="What needs to happen?"/></label><div className="form-row"><label>Project<Select value={form.project} onValueChange={v=>setForm({...form,project:v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{projects.map(p=><SelectItem value={p.name} key={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></label><label>Assignee<Select value={form.owner} onValueChange={v=>setForm({...form,owner:v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="Unassigned">Unassigned</SelectItem>{members.map(m=><SelectItem value={m.name} key={m.id}>{m.name}</SelectItem>)}</SelectContent></Select></label></div><div className="form-row"><label>Due date<Input type="date" value={form.due} onChange={e=>setForm({...form,due:e.target.value})}/></label><label>People downstream<Select value={form.impact} onValueChange={v=>setForm({...form,impact:v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{["0","1","2","3","4","5"].map(x=><SelectItem value={x} key={x}>{x}</SelectItem>)}</SelectContent></Select></label></div></div><DialogFooter><Button variant="outline" onClick={()=>setOpen(false)}>Cancel</Button><Button onClick={save}>Add task</Button></DialogFooter></DialogContent></Dialog>}
-function ProjectDrawer({project,setProject,steps,members,notes,setNotes,documents,setDocuments,tasks,setTasks,tags,updateProject,addStep}:{project:Project|null;setProject:(p:Project|null)=>void;steps:Step[];members:Member[];notes:ProjectNote[];setNotes:React.Dispatch<React.SetStateAction<ProjectNote[]>>;documents:ProjectDocument[];setDocuments:React.Dispatch<React.SetStateAction<ProjectDocument[]>>;tasks:Task[];setTasks:React.Dispatch<React.SetStateAction<Task[]>>;tags:TagDef[];updateProject:(p:Project)=>void;addStep:()=>void}){
-  const [body,setBody]=useState("");const [mentions,setMentions]=useState<string[]>([]);const [channels,setChannels]=useState<string[]>(["Slack","Email"]);const [uploading,setUploading]=useState(false);const [importing,setImporting]=useState(false);
-  if(!project)return <Sheet open={false}><SheetContent/></Sheet>;
-  async function postNote(){if(!body.trim())return;const temp:ProjectNote={id:Date.now(),projectId:project!.id,body,author:"You",mentions:JSON.stringify(mentions),channels:JSON.stringify(channels),created:"Just now"};setNotes(x=>[...x,temp]);setBody("");setMentions([]);const r=await fetch("/api/notes",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({projectId:project!.id,body:temp.body,mentions,channels})});if(r.ok){const d=await r.json();setNotes(x=>x.map(n=>n.id===temp.id?d.note:n));toast("Note posted",{description:mentions.length?mentions.length+" teammate notification(s) queued via "+channels.join(" and "):"Saved to the project."})}}
-  async function upload(file?:File){if(!file)return;setUploading(true);const form=new FormData();form.append("file",file);form.append("projectId",String(project!.id));const r=await fetch("/api/documents",{method:"POST",body:form});const d=await r.json();setUploading(false);if(r.ok){setDocuments(x=>[...x,d.document]);toast("Document uploaded",{description:file.name})}else toast.error(d.error||"Upload failed")}
-  async function importPlan(file?:File){if(!file)return;setImporting(true);const form=new FormData();form.append("file",file);form.append("projectId",String(project!.id));const r=await fetch("/api/project-plan",{method:"POST",body:form});const d=await r.json();setImporting(false);if(r.ok){setDocuments(x=>[...x,d.document]);setTasks(x=>[...d.tasks.map((t:Task&{waitingOn:string})=>({...t,waitingOn:JSON.parse(t.waitingOn||"[]")})),...x]);toast("Project plan converted",{description:d.tasks.length+" editable tasks created from "+d.pages+" page(s)."})}else toast.error(d.error||"Plan import failed")}
-  const pNotes=notes.filter(n=>n.projectId===project.id);const pDocs=documents.filter(d=>d.projectId===project.id);
-  return <Sheet open={!!project} onOpenChange={o=>!o&&setProject(null)}><SheetContent className="project-sheet"><SheetHeader><div className="sheet-project-icon" style={{background:project.color}}>{project.name[0]}</div><SheetTitle>{project.name}</SheetTitle><SheetDescription>{project.description}</SheetDescription></SheetHeader><div className="sheet-meta"><div><span>Health</span><Health value={project.status}/></div><div><span>Owner</span><strong>{project.owner}</strong></div><div><span>Due date</span><strong>{project.due}</strong></div><div><span>Category</span><strong>{project.category}</strong></div></div><div className="priority-editor"><label>Priority<Select value={project.priority||"Normal"} onValueChange={v=>updateProject({...project,priority:v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{["Low","Normal","High","Urgent"].map(x=><SelectItem value={x} key={x}>{x}</SelectItem>)}</SelectContent></Select></label><label>Expected progress<Input type="number" min="0" max="100" value={project.expectedProgress??0} onBlur={e=>updateProject({...project,expectedProgress:Number(e.target.value)})} onChange={e=>setProject({...project,expectedProgress:Number(e.target.value)})}/></label></div><TagPicker value={parseTags(project.tags)} tags={tags} onChange={value=>updateProject({...project,tags:JSON.stringify(value)})}/><div className="sheet-progress"><div><span>Overall progress · {project.progress>=project.expectedProgress?"On schedule":(project.expectedProgress-project.progress)+" points behind"}</span><strong>{project.progress}% / {project.expectedProgress}% planned</strong></div><div><i style={{width:project.progress+"%",background:project.color}}/></div></div>
-    <Tabs defaultValue="plan" className="project-tabs"><TabsList><TabsTrigger value="plan">Plan</TabsTrigger><TabsTrigger value="notes">Notes <span>{pNotes.length}</span></TabsTrigger><TabsTrigger value="files">Files <span>{pDocs.length}</span></TabsTrigger></TabsList>
-      <TabsContent value="plan"><section className="plan"><div className="plan-title"><div><h3>Project plan</h3><span>Tasks, owners, and dates in one path.</span></div><Button size="sm" variant="outline" onClick={addStep}><Plus/>Add step</Button></div><label className="plan-import"><input type="file" accept="application/pdf,.pdf" onChange={e=>importPlan(e.target.files?.[0])}/><FileUp/><span><strong>{importing?"Reading plan…":"Import project plan PDF"}</strong><small>Extract action items into editable tasks</small></span></label>{steps.filter(s=>s.projectId===project.id).map(s=><div className="plan-step" key={s.id}><Checkbox checked={s.status==="done"}/><div><strong>{s.title}</strong><span>{s.phase} · {s.assignee}</span></div><time>{s.due}</time><span className={"step-status step-"+s.status}>{s.status.replace("_"," ")}</span></div>)}{tasks.filter(t=>t.project===project.name&&t.objective==="Imported project plan").map(t=><div className="plan-step imported" key={"task"+t.id}><Checkbox/><div><strong>{t.title}</strong><span>Imported task · {t.owner}</span></div><time>{t.due}</time><span className="step-status">task</span></div>)}{!steps.some(s=>s.projectId===project.id)&&!tasks.some(t=>t.project===project.name&&t.objective==="Imported project plan")&&<div className="empty-plan"><ListChecks/><strong>No steps yet</strong><span>Add the first step or import a PDF plan.</span></div>}</section></TabsContent>
-      <TabsContent value="notes"><section className="project-notes"><div className="note-composer"><Textarea value={body} onChange={e=>setBody(e.target.value)} placeholder="Add a project note or update…"/><div className="mention-tools"><span><AtSign/>Notify</span>{members.map(m=><button key={m.id} className={mentions.includes(m.email)?"selected":""} onClick={()=>setMentions(x=>x.includes(m.email)?x.filter(v=>v!==m.email):[...x,m.email])}>{m.name}</button>)}</div><div className="delivery-tools"><button className={channels.includes("Slack")?"selected":""} onClick={()=>setChannels(x=>x.includes("Slack")?x.filter(v=>v!=="Slack"):[...x,"Slack"])}><MessageSquare/>Slack</button><button className={channels.includes("Email")?"selected":""} onClick={()=>setChannels(x=>x.includes("Email")?x.filter(v=>v!=="Email"):[...x,"Email"])}><Mail/>Email</button><Button size="sm" onClick={postNote}>Post note</Button></div></div>{pNotes.slice().reverse().map(n=><article className="note-item" key={n.id}><span className="avatar">{n.author.split(" ").map(x=>x[0]).slice(0,2).join("")}</span><div><header><strong>{n.author}</strong><time>{n.created}</time></header><p>{n.body}</p>{JSON.parse(n.mentions||"[]").length>0&&<small><AtSign/>{JSON.parse(n.mentions).join(", ")}</small>}</div></article>)}</section></TabsContent>
-      <TabsContent value="files"><section className="project-files"><label className="upload-zone"><input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx" onChange={e=>upload(e.target.files?.[0])}/><FileUp/><strong>{uploading?"Uploading…":"Upload a document"}</strong><span>PDF, Word, or Excel · up to 25 MB</span></label>{pDocs.map(d=><article className="file-item" key={d.id}><span><FileText/></span><div><strong>{d.name}</strong><small>{(d.size/1024).toFixed(0)} KB · {d.uploadedBy} · {d.created}</small></div><a href={"/api/documents/"+d.id} aria-label={"Download "+d.name}><Download/></a></article>)}</section></TabsContent>
-    </Tabs></SheetContent></Sheet>
-}
-function StepDialog({open,setOpen,members,save}:{open:boolean;setOpen:(v:boolean)=>void;members:Member[];save:(v:{title:string;assignee:string;due:string;phase:string})=>void}){const [form,setForm]=useState({title:"",assignee:"Unassigned",due:"2026-09-18",phase:"Plan"});return <Dialog open={open} onOpenChange={setOpen}><DialogContent><DialogHeader><DialogTitle>Add a project step</DialogTitle><DialogDescription>Give the step an owner and date so it appears in the plan and calendar.</DialogDescription></DialogHeader><div className="form-stack"><label>Step<Input value={form.title} onChange={e=>setForm({...form,title:e.target.value})}/></label><div className="form-row"><label>Phase<Select value={form.phase} onValueChange={v=>setForm({...form,phase:v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{["Plan","Build","Review","Launch"].map(x=><SelectItem value={x} key={x}>{x}</SelectItem>)}</SelectContent></Select></label><label>Assignee<Select value={form.assignee} onValueChange={v=>setForm({...form,assignee:v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="Unassigned">Unassigned</SelectItem>{members.map(m=><SelectItem value={m.name} key={m.id}>{m.name}</SelectItem>)}</SelectContent></Select></label></div><label>Due date<Input type="date" value={form.due} onChange={e=>setForm({...form,due:e.target.value})}/></label></div><DialogFooter><Button variant="outline" onClick={()=>setOpen(false)}>Cancel</Button><Button onClick={()=>{save(form);setForm({title:"",assignee:"Unassigned",due:"2026-09-18",phase:"Plan"})}}>Add step</Button></DialogFooter></DialogContent></Dialog>}
-function TaskEditDialog({task,setTask,members,save}:{task:Task|null;setTask:(t:Task|null)=>void;members:Member[];save:(t:Task)=>void}){const [draft,setDraft]=useState<Task|null>(task);useEffect(()=>setDraft(task),[task]);return <Dialog open={!!task} onOpenChange={o=>!o&&setTask(null)}><DialogContent>{draft&&<><DialogHeader><DialogTitle>{draft.title}</DialogTitle><DialogDescription>{draft.project} · Assign, schedule, and capture working notes.</DialogDescription></DialogHeader><div className="form-stack"><div className="form-row"><label>Assignee<Select value={draft.owner} onValueChange={v=>setDraft({...draft,owner:v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="Unassigned">Unassigned</SelectItem>{members.map(m=><SelectItem value={m.name} key={m.id}>{m.name}</SelectItem>)}</SelectContent></Select></label><label>Due date<Input type="date" value={toDateValue(draft.due)} onChange={e=>setDraft({...draft,due:e.target.value})}/></label></div><label>Task notes<Textarea value={draft.notes||""} onChange={e=>setDraft({...draft,notes:e.target.value})} placeholder="Context, decisions, links, or handoff details…"/></label></div><DialogFooter><Button variant="outline" onClick={()=>setTask(null)}>Cancel</Button><Button onClick={()=>save(draft)}>Save task</Button></DialogFooter></>}</DialogContent></Dialog>}
-function CalendarView({tasks,projects,onTask}:{tasks:Task[];projects:Project[];onTask:(t:Task)=>void}){const [mode,setMode]=useState<"month"|"day">("month");const [day,setDay]=useState(14);const weekdays=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];function taskDay(t:Task){if(t.due==="Today")return 14;if(t.due==="Tomorrow")return 15;if(/^2026-09-/.test(t.due))return Number(t.due.slice(-2));if(/^Sep /.test(t.due))return Number(t.due.split(" ")[1]);return 0}function color(t:Task){return projects.find(p=>p.name===t.project)?.color||"#5b6fd8"}const dayTasks=tasks.filter(t=>taskDay(t)===day&&t.status!=="done");return <><PageHead eyebrow="Schedule" title="Calendar" subtitle="Every assigned task and project deadline in one view." action={<Button onClick={()=>toast("Calendar synced",{description:"Your current workspace schedule is up to date."})}><CalendarDays/>Sync calendar</Button>}/><div className="calendar-toolbar"><div><button><ChevronLeft/></button><strong>September 2026</strong><button><ChevronRight/></button></div><div><button className={mode==="month"?"active":""} onClick={()=>setMode("month")}>Month</button><button className={mode==="day"?"active":""} onClick={()=>setMode("day")}>Day</button></div></div>{mode==="month"?<section className="calendar panel"><header>{weekdays.map(d=><span key={d}>{d}</span>)}</header><div className="calendar-grid">{[...Array(2)].map((_,i)=><div className="calendar-cell blank" key={"b"+i}/>) }{[...Array(30)].map((_,i)=>{const d=i+1;return <button className={"calendar-cell "+(d===14?"today":"")} key={d} onClick={()=>{setDay(d);setMode("day")}}><span>{d}</span>{tasks.filter(t=>taskDay(t)===d&&t.status!=="done").slice(0,3).map(t=><i key={t.id} style={{borderColor:color(t),background:color(t)+"14"}} onClick={e=>{e.stopPropagation();onTask(t)}}>{t.title}</i>)}</button>})}</div></section>:<section className="day-view panel"><header><div><span>September</span><strong>{day}</strong></div><h2>{weekdays[(day+2)%7]}</h2></header><div>{dayTasks.length?dayTasks.map(t=><button key={t.id} onClick={()=>onTask(t)}><i style={{background:color(t)}}/><span><strong>{t.title}</strong><small>{t.project} · {t.owner}</small></span><time>Due today</time><ChevronRight/></button>):<div className="empty-plan"><CalendarDays/><strong>No work due</strong><span>Select another day or enjoy the breathing room.</span></div>}</div></section>}<div className="calendar-legend">{projects.map(p=><span key={p.id}><i style={{background:p.color}}/>{p.name}</span>)}</div></>}
-function toDateValue(value:string){if(/^\d{4}-\d{2}-\d{2}$/.test(value))return value;if(value==="Today")return"2026-09-14";if(value==="Tomorrow")return"2026-09-15";if(/^Sep /.test(value))return"2026-09-"+String(Number(value.split(" ")[1])).padStart(2,"0");return""}
-function TicketDialog({kind,setKind,form,setForm,tags,save}:{kind:"request"|"idea"|"issue"|null;setKind:(v:"request"|"idea"|"issue"|null)=>void;form:any;setForm:(v:any)=>void;tags:TagDef[];save:()=>void}){const noun=kind==="idea"?"idea":kind==="issue"?"issue":"request";return <Dialog open={!!kind} onOpenChange={o=>!o&&setKind(null)}><DialogContent><DialogHeader><DialogTitle>Submit an {noun}</DialogTitle><DialogDescription>{kind==="idea"?"Capture the opportunity now. It can become a project later.":kind==="issue"?"Give support a reproducible example and the affected system.":"Give the receiving team enough context to act without a meeting."}</DialogDescription></DialogHeader><div className="form-stack"><label>Title<Input autoFocus value={form.title} onChange={e=>setForm({...form,title:e.target.value})}/></label><label>Details<Textarea value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></label><div className="form-row"><label>Category<Input value={form.category} onChange={e=>setForm({...form,category:e.target.value})}/></label><label>Priority<Select value={form.priority} onValueChange={v=>setForm({...form,priority:v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{["Low","Normal","High","Urgent"].map(x=><SelectItem value={x} key={x}>{x}</SelectItem>)}</SelectContent></Select></label></div>{kind==="issue"&&<div className="form-row"><label>Affected system<Select value={form.system} onValueChange={v=>setForm({...form,system:v})}><SelectTrigger><SelectValue placeholder="Choose system"/></SelectTrigger><SelectContent>{["Salesforce","Phone system","Gmail","Website","Other"].map(x=><SelectItem value={x} key={x}>{x}</SelectItem>)}</SelectContent></Select></label><label>Example link<Input type="url" placeholder="https://…" value={form.exampleUrl} onChange={e=>setForm({...form,exampleUrl:e.target.value})}/></label></div>}<TagPicker value={parseTags(form.tags)} tags={tags} onChange={value=>setForm({...form,tags:JSON.stringify(value)})}/></div><DialogFooter><Button variant="outline" onClick={()=>setKind(null)}>Cancel</Button><Button onClick={save}>Submit</Button></DialogFooter></DialogContent></Dialog>}
-
-function TicketEditDialog({ticket,setTicket,members,tags,save,convert}:{ticket:Ticket|null;setTicket:(t:Ticket|null)=>void;members:Member[];tags:TagDef[];save:(t:Ticket)=>void;convert:(t:Ticket)=>void}){const [draft,setDraft]=useState<Ticket|null>(ticket);useEffect(()=>setDraft(ticket),[ticket]);return <Dialog open={!!ticket} onOpenChange={o=>!o&&setTicket(null)}><DialogContent className="wide-dialog">{draft&&<><DialogHeader><DialogTitle>Edit {draft.kind}</DialogTitle><DialogDescription>Created by {draft.requester} · {draft.created}</DialogDescription></DialogHeader><div className="form-stack"><label>Title<Input value={draft.title} onChange={e=>setDraft({...draft,title:e.target.value})}/></label><label>Details<Textarea value={draft.description} onChange={e=>setDraft({...draft,description:e.target.value})}/></label><div className="form-row"><label>Priority<Select value={draft.priority} onValueChange={v=>setDraft({...draft,priority:v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{["Low","Normal","High","Urgent"].map(x=><SelectItem value={x} key={x}>{x}</SelectItem>)}</SelectContent></Select></label><label>Status<Select value={draft.status} onValueChange={v=>setDraft({...draft,status:v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{(draft.kind==="idea"?["New","Evaluating","Planned","Converted","Closed"]:draft.kind==="issue"?["New","Investigating","Fix planned","Resolved","Closed"]:["New","In review","Approved","Converted","Closed"]).map(x=><SelectItem value={x} key={x}>{x}</SelectItem>)}</SelectContent></Select></label></div><div className="form-row"><label>Owner<Select value={draft.owner} onValueChange={v=>setDraft({...draft,owner:v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="Unassigned">Unassigned</SelectItem>{members.map(m=><SelectItem value={m.name} key={m.id}>{m.name}</SelectItem>)}</SelectContent></Select></label><label>Category<Input value={draft.category} onChange={e=>setDraft({...draft,category:e.target.value})}/></label></div>{draft.kind==="issue"&&<div className="form-row"><label>Affected system<Select value={draft.system||"Other"} onValueChange={v=>setDraft({...draft,system:v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{["Salesforce","Phone system","Gmail","Website","Other"].map(x=><SelectItem value={x} key={x}>{x}</SelectItem>)}</SelectContent></Select></label><label>Example link<Input type="url" value={draft.exampleUrl} onChange={e=>setDraft({...draft,exampleUrl:e.target.value})}/></label></div>}<TagPicker value={parseTags(draft.tags)} tags={tags} onChange={value=>setDraft({...draft,tags:JSON.stringify(value)})}/></div><DialogFooter>{draft.kind!=="issue"&&draft.status!=="Converted"&&<Button variant="outline" onClick={()=>convert(draft)}>Convert to project</Button>}<Button variant="outline" onClick={()=>setTicket(null)}>Cancel</Button><Button onClick={()=>save(draft)}>Save changes</Button></DialogFooter></>}</DialogContent></Dialog>}
-
-function parseTags(value:string){try{const parsed=JSON.parse(value||"[]");return Array.isArray(parsed)?parsed:[]}catch{return []}}
-function TagPicker({value,tags,onChange}:{value:string[];tags:TagDef[];onChange:(v:string[])=>void}){return <div className="tag-picker"><span>Tags</span><div>{tags.map(tag=><button type="button" key={tag.id} className={value.includes(tag.name)?"selected":""} style={{"--tag-color":tag.color} as React.CSSProperties} onClick={()=>onChange(value.includes(tag.name)?value.filter(x=>x!==tag.name):[...value,tag.name])}><i/>{tag.name}</button>)}</div></div>}
-
-function PriorityDashboard({projects,tickets,onProject,onTicket}:{projects:Project[];tickets:Ticket[];onProject:(p:Project)=>void;onTicket:(t:Ticket)=>void}){const weight:Record<string,number>={Urgent:4,High:3,Normal:2,Low:1};const rows=[...projects.map(item=>({type:"Project",title:item.name,priority:item.priority,tags:parseTags(item.tags),item,open:()=>onProject(item)})),...tickets.filter(t=>t.kind!=="issue").map(item=>({type:item.kind==="idea"?"Idea":"Request",title:item.title,priority:item.priority,tags:parseTags(item.tags),item,open:()=>onTicket(item)}))].sort((a,b)=>(weight[b.priority]||0)-(weight[a.priority]||0));return <section className="panel priority-board"><PanelTitle title="Priority across work" subtitle="Projects, requests, and ideas in one ranked view"/><div className="priority-head"><span>Rank</span><span>Work</span><span>Type</span><span>Priority</span><span>Tags</span></div>{rows.slice(0,8).map((row,i)=><button key={row.type+row.title} onClick={row.open}><b>{i+1}</b><span><strong>{row.title}</strong></span><em>{row.type}</em><span className={"priority priority-"+row.priority.toLowerCase()}>{row.priority}</span><span className="mini-tags">{row.tags.length?row.tags.map(x=><i key={x}>{x}</i>):"—"}</span></button>)}</section>}
-
-function SchedulePanel({projects,onProject}:{projects:Project[];onProject:(p:Project)=>void}){return <section className="panel schedule-panel"><PanelTitle title="Schedule performance" subtitle="Actual progress compared with planned progress"/>{projects.map(p=>{const gap=p.progress-p.expectedProgress;return <button key={p.id} onClick={()=>onProject(p)}><span><i style={{background:p.color}}/><strong>{p.name}</strong><small>{p.due}</small></span><div><span>Actual {p.progress}%</span><span>Plan {p.expectedProgress}%</span></div><b className={gap<0?"behind":"ontime"}>{gap<0?Math.abs(gap)+" pts behind":gap===0?"On plan":gap+" pts ahead"}</b></button>})}</section>}
-
-function TagManager({tags,onCreate}:{tags:TagDef[];onCreate:(v:{name:string;color:string;weight:number})=>void}){const [form,setForm]=useState({name:"",color:"#5b6fd8",weight:3});return <section className="panel tag-manager"><PanelTitle title="Workspace tags" subtitle="Managers define the labels used across projects and intake"/><div className="tag-create"><Input placeholder="New tag name" value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/><Input type="color" aria-label="Tag color" value={form.color} onChange={e=>setForm({...form,color:e.target.value})}/><Select value={String(form.weight)} onValueChange={v=>setForm({...form,weight:Number(v)})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{[1,2,3,4,5].map(x=><SelectItem value={String(x)} key={x}>Weight {x}</SelectItem>)}</SelectContent></Select><Button onClick={()=>{if(form.name.trim()){onCreate(form);setForm({...form,name:""})}}}><Plus/>Add tag</Button></div><div className="tag-catalog">{tags.map(tag=><span key={tag.id}><i style={{background:tag.color}}/>{tag.name}<small>weight {tag.weight}</small></span>)}</div></section>}
-function IdentityGate({onSignedIn}:{onSignedIn:(user:User)=>void}){
-  const [mode,setMode]=useState<"login"|"signup">("login");
-  const [email,setEmail]=useState("");
-  const [password,setPassword]=useState("");
-  const [busy,setBusy]=useState(false);
-  const [message,setMessage]=useState("");
-  async function submit(){
-    setBusy(true);setMessage("");
-    try{
-      if(mode==="signup"){
-        await signup(email.trim().toLowerCase(),password,{data:{full_name:email.split("@")[0]}});
-        setMessage("Check your email to confirm the account, then sign in.");setMode("login");setPassword("");
-      }else onSignedIn(await login(email.trim().toLowerCase(),password));
-    }catch(error){setMessage(error instanceof Error?error.message:"Sign-in failed. Ask an administrator to confirm your invitation.")}
-    finally{setBusy(false)}
+function IdentityGate({ onSignedIn }: { onSignedIn: (user: User) => void }) {
+  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  async function submit() {
+    setBusy(true); setMessage("");
+    try {
+      if (mode === "signup") {
+        await signup(email.trim().toLowerCase(), password, { data: { full_name: email.split("@")[0] } });
+        setMessage("Check your email to confirm the account, then sign in."); setMode("login"); setPassword("");
+      } else onSignedIn(await login(email.trim().toLowerCase(), password));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Sign-in failed. Please try again.");
+    } finally { setBusy(false); }
   }
-  return <main className="auth-shell"><section className="auth-card"><div className="brand-mark">S</div><span>Signal Project Manager</span><h1>{mode==="login"?"Sign in to your workspace":"Create your account"}</h1><p>Use the same email address that received your Signal invitation.</p><div className="form-stack"><label>Email address<Input type="email" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email"/></label><label>Password<Input type="password" value={password} onChange={e=>setPassword(e.target.value)} autoComplete={mode==="login"?"current-password":"new-password"}/></label>{message&&<div className="auth-message">{message}</div>}<Button onClick={submit} disabled={busy||!email.includes("@")||password.length<8}>{busy?"Please wait…":mode==="login"?"Sign in":"Create account"}</Button></div><button className="auth-switch" onClick={()=>{setMode(mode==="login"?"signup":"login");setMessage("")}}>{mode==="login"?"First time here? Create an account":"Already have an account? Sign in"}</button></section></main>
+  return (
+    <main className="auth-shell">
+      <section className="auth-card">
+        <div className="brand-mark">S</div>
+        <span>Signal Project Manager</span>
+        <h1>{mode === "login" ? "Sign in to your workspace" : "Create your account"}</h1>
+        <p>Sign in or create an account to get started.</p>
+        <div className="form-stack">
+          <label>Email address<Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" /></label>
+          <label>Password<Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} /></label>
+          {message && <div className="auth-message">{message}</div>}
+          <Button onClick={submit} disabled={busy || !email.includes("@") || password.length < 8}>{busy ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}</Button>
+        </div>
+        <button className="auth-switch" onClick={() => { setMode(mode === "login" ? "signup" : "login"); setMessage(""); }}>
+          {mode === "login" ? "First time here? Create an account" : "Already have an account? Sign in"}
+        </button>
+      </section>
+    </main>
+  );
 }
 
-function IntegrationDialog({open,setOpen,status}:{open:boolean;setOpen:(v:boolean)=>void;status:{slack:boolean;email:boolean}}){
-  const [token,setToken]=useState("");
-  const [saving,setSaving]=useState(false);
-  async function connectSlack(){
-    if(!token.trim())return;
-    setSaving(true);
-    const r=await fetch("/api/integrations/slack",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token})});
-    const d=await r.json();
-    setSaving(false);
-    if(r.ok){setToken("");status.slack=true;toast.success("Slack connected",{description:d.workspace+" can now receive Signal invitations."});setOpen(false)}else toast.error(d.error||"Slack could not be connected");
+function WorkspaceApp({ identity }: { identity: User }) {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [steps, setSteps] = useState<Step[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [view, setView] = useState("dashboard");
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<Project | null>(null);
+  const [ticketKind, setTicketKind] = useState<TicketKind>("request");
+  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+
+  const [projectOpen, setProjectOpen] = useState(false);
+  const [taskOpen, setTaskOpen] = useState(false);
+  const [stepOpen, setStepOpen] = useState(false);
+  const [ticketOpen, setTicketOpen] = useState(false);
+
+  const [projectForm, setProjectForm] = useState({ name: "", description: "", owner: "", due: "" });
+  const [taskForm, setTaskForm] = useState({ title: "", project: "", owner: "", due: "" });
+  const [stepForm, setStepForm] = useState({ title: "", assignee: "", due: "" });
+  const [ticketForm, setTicketForm] = useState({ title: "", description: "", priority: "Normal" });
+
+  useEffect(() => {
+    fetch("/api/workspace")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d) { toast.error("Could not load workspace data. Try refreshing."); setLoaded(true); return; }
+        setProjects(d.projects || []); setSteps(d.steps || []); setTasks(d.tasks || []); setTickets(d.tickets || []);
+        setLoaded(true);
+      })
+      .catch(() => setLoaded(true));
+  }, []);
+
+  const filteredProjects = projects.filter((p) => (p.name + p.category + p.owner).toLowerCase().includes(query.toLowerCase()));
+  const openTasks = tasks.filter((t) => t.status !== "done").sort((a, b) => b.impact - a.impact);
+  const doneTasks = tasks.filter((t) => t.status === "done");
+  const attentionProjects = projects.filter((p) => p.status !== "On track");
+  const kindTickets = tickets.filter((t) => t.kind === ticketKind);
+  const openTickets = tickets.filter((t) => t.status !== "Converted" && t.status !== "Done");
+  const healthData = ["On track", "Watch", "At risk"].map((name) => ({ name, value: projects.filter((p) => p.status === name).length, color: statusColor[name] }));
+
+  function toggleTask(task: Task) {
+    const status = task.status === "done" ? "open" : "done";
+    setTasks((x) => x.map((t) => (t.id === task.id ? { ...t, status } : t)));
+    fetch("/api/tasks/" + task.id, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status }) }).catch(() => undefined);
   }
-  return <Dialog open={open} onOpenChange={setOpen}><DialogContent className="wide-dialog"><DialogHeader><div className="slack-logo">#</div><DialogTitle>Slack & email setup</DialogTitle><DialogDescription>Connect the providers Signal uses for mentions and team invitations.</DialogDescription></DialogHeader><div className="connection-grid"><section><header><MessageSquare/><span><strong>Slack</strong><small>{status.slack?"Connected":"Ready for token"}</small></span><b className={status.slack?"connection-on":"connection-off"}>{status.slack?"Active":"One step left"}</b></header>{status.slack?<p className="integration-ready"><CheckCircle2/> Slack invitations and mentions are enabled.</p>:<><p className="token-help">Paste the <strong>Bot User OAuth Token</strong> from the installed Signal Project Manager Slack app.</p><label className="token-field">Bot token<Input type="password" autoComplete="off" value={token} onChange={e=>setToken(e.target.value)} placeholder="xoxb-…"/></label><Button className="connect-button" onClick={connectSlack} disabled={saving||!token.trim()}>{saving?"Verifying…":"Connect Slack"}</Button><a className="setup-link" href="https://api.slack.com/apps/A0C1P4YMSF7/install-on-team" target="_blank" rel="noreferrer">Open installed Slack app <ArrowUpRight/></a></>}</section><section><header><Mail/><span><strong>Invitation email</strong><small>{status.email?"Connected":"Not connected"}</small></span><b className={status.email?"connection-on":"connection-off"}>{status.email?"Active":"Setup required"}</b></header><ol><li>Connect Resend and verify a sending domain.</li><li>Create an API key.</li><li>Save <code>RESEND_API_KEY</code> and <code>NOTIFICATION_FROM_EMAIL</code>.</li><li>New invitations will then send automatically.</li></ol><a className="setup-link" href="https://resend.com/domains" target="_blank" rel="noreferrer">Open email setup <ArrowUpRight/></a></section></div><div className="config-note"><ShieldCheck/><span><strong>The Slack token is encrypted before it is saved.</strong><small>It is never displayed again or stored in project records.</small></span></div><DialogFooter><Button onClick={()=>setOpen(false)}>Done</Button></DialogFooter></DialogContent></Dialog>
+
+  async function createProject() {
+    if (!projectForm.name.trim()) return;
+    const r = await fetch("/api/projects", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(projectForm) });
+    const d = await r.json();
+    if (r.ok) { setProjects((x) => [d.project, ...x]); setProjectOpen(false); setProjectForm({ name: "", description: "", owner: "", due: "" }); toast("Project created"); }
+    else toast.error(d.error || "Could not create project");
+  }
+
+  async function createTask() {
+    if (!taskForm.title.trim()) return;
+    const r = await fetch("/api/tasks", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(taskForm) });
+    const d = await r.json();
+    if (r.ok) { setTasks((x) => [d.task, ...x]); setTaskOpen(false); setTaskForm({ title: "", project: "", owner: "", due: "" }); toast("Task added"); }
+    else toast.error(d.error || "Could not add task");
+  }
+
+  async function addStep() {
+    if (!selected || !stepForm.title.trim()) return;
+    const position = steps.filter((s) => s.projectId === selected.id).length + 1;
+    const r = await fetch("/api/steps", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ projectId: selected.id, ...stepForm, position }) });
+    const d = await r.json();
+    if (r.ok) { setSteps((x) => [...x, d.step]); setStepOpen(false); setStepForm({ title: "", assignee: "", due: "" }); }
+    else toast.error(d.error || "Could not add step");
+  }
+
+  function toggleStep(step: Step) {
+    const order = ["todo", "in_progress", "done"];
+    const status = order[(order.indexOf(step.status) + 1) % order.length];
+    setSteps((x) => x.map((s) => (s.id === step.id ? { ...s, status } : s)));
+    fetch("/api/steps/" + step.id, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status }) }).catch(() => undefined);
+  }
+
+  function updateProjectProgress(project: Project, progress: number) {
+    setProjects((x) => x.map((p) => (p.id === project.id ? { ...p, progress } : p)));
+    setSelected((s) => (s && s.id === project.id ? { ...s, progress } : s));
+    fetch("/api/projects/" + project.id, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ progress }) }).catch(() => undefined);
+  }
+
+  function updateProjectStatus(project: Project, status: string) {
+    setProjects((x) => x.map((p) => (p.id === project.id ? { ...p, status } : p)));
+    setSelected((s) => (s && s.id === project.id ? { ...s, status } : s));
+    fetch("/api/projects/" + project.id, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status }) }).catch(() => undefined);
+  }
+
+  async function createTicket() {
+    if (!ticketForm.title.trim()) return;
+    const r = await fetch("/api/tickets", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...ticketForm, kind: ticketKind }) });
+    const d = await r.json();
+    if (r.ok) { setTickets((x) => [d.ticket, ...x]); setTicketOpen(false); setTicketForm({ title: "", description: "", priority: "Normal" }); toast(kindLabel[ticketKind] + " submitted"); }
+    else toast.error(d.error || "Could not submit");
+  }
+
+  async function updateTicket(ticket: Ticket, changes: Partial<Ticket>) {
+    const r = await fetch("/api/tickets/" + ticket.id, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(changes) });
+    const d = await r.json();
+    if (r.ok) { setTickets((x) => x.map((t) => (t.id === ticket.id ? d.ticket : t))); setSelectedTicket(d.ticket); }
+    else toast.error(d.error || "Could not update");
+  }
+
+  async function convertTicket(ticket: Ticket) {
+    const r = await fetch("/api/tickets/" + ticket.id + "/convert", { method: "POST" });
+    const d = await r.json();
+    if (r.ok) { setProjects((x) => [d.project, ...x]); setTickets((x) => x.map((t) => (t.id === ticket.id ? d.ticket : t))); setSelectedTicket(null); setSelected(d.project); setView("projects"); toast("Converted to project"); }
+    else toast.error(d.error || "Could not convert");
+  }
+
+  function openCreate() {
+    if (view === "my-work") setTaskOpen(true);
+    else if (view === "tickets") setTicketOpen(true);
+    else setProjectOpen(true);
+  }
+
+  const initials = (identity.name || identity.email || "?").split(/[ @.]/).filter(Boolean).slice(0, 2).map((s) => s[0].toUpperCase()).join("");
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const firstNameRaw = (identity.name || identity.email || "there").split(/[@ ]/)[0];
+  const firstName = firstNameRaw.charAt(0).toUpperCase() + firstNameRaw.slice(1);
+
+  return (
+    <div className="app-shell robust">
+      <header className="topbar">
+        <div className="brand"><span className="brand-mark"><Sparkles size={17} /></span><span>SIGNAL</span><em>WORK OS</em></div>
+        <div className="search"><Search size={17} /><input aria-label="Search projects" placeholder="Search projects…" value={query} onChange={(e) => setQuery(e.target.value)} /><kbd>⌘ K</kbd></div>
+        <div className="top-actions">
+          <Button onClick={openCreate}><Plus />Create</Button>
+          <span className="avatar">{initials}</span>
+        </div>
+      </header>
+      <div className="workspace">
+        <aside className="rail">
+          <div className="rail-label">Workspace</div>
+          <nav className="rail-tabs">
+            {nav.map(([id, label, Icon]) => (
+              <button key={id} data-state={view === id ? "active" : undefined} onClick={() => setView(id)}><Icon />{label}</button>
+            ))}
+          </nav>
+          <div className="rail-bottom">
+            <button onClick={() => logout().then(() => window.location.reload())}><Settings2 />Sign out</button>
+          </div>
+        </aside>
+        <main className="content">
+          {!loaded ? (
+            <p>Loading…</p>
+          ) : view === "dashboard" ? (
+            <>
+              <PageHead eyebrow={new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} title={greeting + ", " + firstName + "."} subtitle="Here’s where work needs attention." action={<Button onClick={() => setProjectOpen(true)}><Plus />New project</Button>} />
+              <div className="metric-grid">
+                <Metric label="Active projects" value={projects.length} detail={attentionProjects.length + " needs attention"} icon={FolderKanban} />
+                <Metric label="Open tasks" value={openTasks.length} detail={doneTasks.length + " completed"} icon={ListChecks} />
+                <Metric label="Open tickets" value={openTickets.length} detail={tickets.filter((t) => t.priority === "Urgent").length + " urgent"} icon={TicketCheck} />
+              </div>
+              <section className="panel" style={{ padding: "20px 22px" }}>
+                <PanelTitle title="Portfolio health" subtitle="Projects by status" />
+                <div className="health-legend">{healthData.map((x) => <div key={x.name}><i style={{ background: x.color }} /><span>{x.name}</span><strong>{x.value}</strong></div>)}</div>
+              </section>
+              {attentionProjects.length > 0 && (
+                <section className="panel" style={{ marginTop: 20, padding: "20px 22px" }}>
+                  <PanelTitle title="Needs attention" subtitle="Projects off track" />
+                  {attentionProjects.map((p) => (
+                    <button key={p.id} className="project-mini" onClick={() => { setSelected(p); setView("projects"); }}>
+                      <i style={{ background: p.color }} /><span><strong>{p.name}</strong><small>{p.category}</small></span>
+                      <Health value={p.status} /><ChevronRight />
+                    </button>
+                  ))}
+                </section>
+              )}
+            </>
+          ) : view === "my-work" ? (
+            <>
+              <PageHead eyebrow="Your day" title="My work" subtitle="Everything actionable, in one list." action={<Button onClick={() => setTaskOpen(true)}><Plus />Add task</Button>} />
+              <TaskList tasks={openTasks} toggle={toggleTask} emptyText="Nothing open — you're clear." />
+              {doneTasks.length > 0 && (
+                <div className="waiting-block">
+                  <div className="section-title"><h2>Completed</h2></div>
+                  <TaskList tasks={doneTasks} toggle={toggleTask} emptyText="" />
+                </div>
+              )}
+            </>
+          ) : view === "projects" ? (
+            <>
+              <PageHead eyebrow="Portfolio" title="Projects" subtitle={projects.length + " active projects."} action={<Button onClick={() => setProjectOpen(true)}><Plus />New project</Button>} />
+              <div className="project-grid">
+                {filteredProjects.map((p) => (
+                  <button className="project-card" key={p.id} onClick={() => setSelected(p)}>
+                    <div className="project-card-top"><span className="project-icon" style={{ background: p.color }}>{p.name[0]}</span></div>
+                    <h3>{p.name}</h3>
+                    <p>{p.description}</p>
+                    <div className="project-tags"><span><Tag />{p.category}</span><span className={"status-text status-" + p.status.replace(" ", "-").toLowerCase()}>{p.status}</span></div>
+                    <div className="project-progress"><div><span>Progress</span><strong>{p.progress}%</strong></div><div><i style={{ width: p.progress + "%", background: p.color }} /></div></div>
+                    <footer><span>{p.owner}</span><time><Clock3 />{p.due}</time></footer>
+                  </button>
+                ))}
+                {!filteredProjects.length && <div className="empty-plan"><FolderKanban /><strong>No projects yet</strong><span>Create the first one.</span></div>}
+              </div>
+            </>
+          ) : view === "calendar" ? (
+            <CalendarView tasks={tasks} projects={projects} />
+          ) : (
+            <>
+              <PageHead eyebrow="Intake queue" title="Tickets" subtitle="Requests, issues, and ideas in one place." action={<Button onClick={() => setTicketOpen(true)}><Plus />New {kindLabel[ticketKind].toLowerCase()}</Button>} />
+              <div className="filter-row">
+                {(["request", "issue", "idea"] as TicketKind[]).map((k) => (
+                  <button key={k} className={ticketKind === k ? "filter-active" : ""} onClick={() => setTicketKind(k)}>{kindLabel[k]} <span>{tickets.filter((t) => t.kind === k).length}</span></button>
+                ))}
+              </div>
+              <section className="panel ticket-list">
+                <div className="ticket-head"><span>ID</span><span>Title</span><span>Requester</span><span>Priority</span><span>Status</span></div>
+                {kindTickets.map((t) => (
+                  <button className="ticket-row" key={t.id} onClick={() => setSelectedTicket(t)}>
+                    <span>{kindPrefix[t.kind] + String(t.id).padStart(3, "0")}</span>
+                    <span><strong>{t.title}</strong><small>{t.description}</small></span>
+                    <span className="creator-cell"><span className="avatar">{t.requester.split(" ").map((x) => x[0]).slice(0, 2).join("")}</span>{t.requester}</span>
+                    <span className={"priority priority-" + t.priority.toLowerCase()}>{t.priority}</span>
+                    <span>{t.status}</span>
+                  </button>
+                ))}
+                {!kindTickets.length && <div className="empty-plan"><CheckCircle2 /><strong>Nothing here</strong><span>All clear.</span></div>}
+              </section>
+            </>
+          )}
+        </main>
+      </div>
+
+      <ProjectDrawer project={selected} setProject={setSelected} steps={steps} onToggleStep={toggleStep} onAddStep={() => setStepOpen(true)} onProgress={updateProjectProgress} onStatus={updateProjectStatus} />
+
+      <Dialog open={projectOpen} onOpenChange={setProjectOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>New project</DialogTitle><DialogDescription>Give it a name and an owner to get started.</DialogDescription></DialogHeader>
+          <div className="form-stack">
+            <label>Name<Input value={projectForm.name} onChange={(e) => setProjectForm({ ...projectForm, name: e.target.value })} /></label>
+            <label>Description<Textarea value={projectForm.description} onChange={(e) => setProjectForm({ ...projectForm, description: e.target.value })} /></label>
+            <div className="form-row">
+              <label>Owner<Input value={projectForm.owner} onChange={(e) => setProjectForm({ ...projectForm, owner: e.target.value })} placeholder="Who runs this?" /></label>
+              <label>Due<Input value={projectForm.due} onChange={(e) => setProjectForm({ ...projectForm, due: e.target.value })} placeholder="e.g. Oct 18" /></label>
+            </div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setProjectOpen(false)}>Cancel</Button><Button onClick={createProject}>Create project</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={taskOpen} onOpenChange={setTaskOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Add task</DialogTitle></DialogHeader>
+          <div className="form-stack">
+            <label>Title<Input value={taskForm.title} onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })} /></label>
+            <div className="form-row">
+              <label>Project<Select value={taskForm.project} onValueChange={(v) => setTaskForm({ ...taskForm, project: v })}><SelectTrigger><SelectValue placeholder="Choose a project" /></SelectTrigger><SelectContent>{projects.map((p) => <SelectItem value={p.name} key={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></label>
+              <label>Owner<Input value={taskForm.owner} onChange={(e) => setTaskForm({ ...taskForm, owner: e.target.value })} /></label>
+            </div>
+            <label>Due<Input value={taskForm.due} onChange={(e) => setTaskForm({ ...taskForm, due: e.target.value })} placeholder="e.g. Tomorrow" /></label>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setTaskOpen(false)}>Cancel</Button><Button onClick={createTask}>Add task</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={stepOpen} onOpenChange={setStepOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Add step</DialogTitle></DialogHeader>
+          <div className="form-stack">
+            <label>Title<Input value={stepForm.title} onChange={(e) => setStepForm({ ...stepForm, title: e.target.value })} /></label>
+            <div className="form-row">
+              <label>Assignee<Input value={stepForm.assignee} onChange={(e) => setStepForm({ ...stepForm, assignee: e.target.value })} /></label>
+              <label>Due<Input value={stepForm.due} onChange={(e) => setStepForm({ ...stepForm, due: e.target.value })} /></label>
+            </div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setStepOpen(false)}>Cancel</Button><Button onClick={addStep}>Add step</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={ticketOpen} onOpenChange={setTicketOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>New {kindLabel[ticketKind].toLowerCase()}</DialogTitle></DialogHeader>
+          <div className="form-stack">
+            <label>Title<Input value={ticketForm.title} onChange={(e) => setTicketForm({ ...ticketForm, title: e.target.value })} /></label>
+            <label>Description<Textarea value={ticketForm.description} onChange={(e) => setTicketForm({ ...ticketForm, description: e.target.value })} /></label>
+            <label>Priority<Select value={ticketForm.priority} onValueChange={(v) => setTicketForm({ ...ticketForm, priority: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Normal">Normal</SelectItem><SelectItem value="High">High</SelectItem><SelectItem value="Urgent">Urgent</SelectItem></SelectContent></Select></label>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setTicketOpen(false)}>Cancel</Button><Button onClick={createTicket}>Submit</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Sheet open={!!selectedTicket} onOpenChange={(v) => !v && setSelectedTicket(null)}>
+        <SheetContent className="project-sheet">
+          {selectedTicket && (
+            <>
+              <SheetHeader><SheetTitle>{selectedTicket.title}</SheetTitle><SheetDescription>{kindLabel[selectedTicket.kind]} from {selectedTicket.requester}</SheetDescription></SheetHeader>
+              <div className="form-stack" style={{ marginTop: 20 }}>
+                <p>{selectedTicket.description}</p>
+                <label>Status<Select value={selectedTicket.status} onValueChange={(v) => updateTicket(selectedTicket, { status: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="New">New</SelectItem><SelectItem value="In progress">In progress</SelectItem><SelectItem value="Done">Done</SelectItem></SelectContent></Select></label>
+                <label>Owner<Input value={selectedTicket.owner} onChange={(e) => setSelectedTicket({ ...selectedTicket, owner: e.target.value })} onBlur={() => updateTicket(selectedTicket, { owner: selectedTicket.owner })} /></label>
+                {selectedTicket.kind === "request" && selectedTicket.status !== "Converted" && <Button onClick={() => convertTicket(selectedTicket)}>Convert to project</Button>}
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      <Toaster richColors position="bottom-right" />
+    </div>
+  );
 }
 
-function MemberDialog({open,setOpen,form,setForm,save}:{open:boolean;setOpen:(v:boolean)=>void;form:any;setForm:(v:any)=>void;save:()=>void}){return <Dialog open={open} onOpenChange={setOpen}><DialogContent><DialogHeader><DialogTitle>Invite a team member</DialogTitle><DialogDescription>Signal matches the email to their Slack profile and workspace access.</DialogDescription></DialogHeader><div className="form-stack"><label>Name<Input value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></label><label>Email address<Input type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="Use the email on their Slack profile"/></label><label>Send invitation through<Select value={form.delivery} onValueChange={v=>setForm({...form,delivery:v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="Slack">Slack direct message</SelectItem><SelectItem value="Email">Email</SelectItem><SelectItem value="Slack + email">Slack and email</SelectItem></SelectContent></Select><small className="field-help">Slack delivery looks up the person by this exact email address.</small></label><div className="form-row"><label>Role<Select value={form.role} onValueChange={v=>setForm({...form,role:v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{Object.keys(roleCopy).map(x=><SelectItem value={x} key={x}>{x}</SelectItem>)}</SelectContent></Select></label><label>Access<Select value={form.access} onValueChange={v=>setForm({...form,access:v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="All projects">All projects</SelectItem><SelectItem value="Assigned projects">Assigned projects</SelectItem><SelectItem value="Requests only">Requests only</SelectItem></SelectContent></Select></label></div><div className="permission-preview"><ShieldCheck/><span><strong>{form.role}</strong><small>{roleCopy[form.role]}</small></span></div></div><DialogFooter><Button variant="outline" onClick={()=>setOpen(false)}>Cancel</Button><Button onClick={save}>Send invitation</Button></DialogFooter></DialogContent></Dialog>}
+function PageHead({ eyebrow, title, subtitle, action }: { eyebrow: string; title: string; subtitle: string; action?: React.ReactNode }) {
+  return <section className="page-heading"><div><p>{eyebrow}</p><h1>{title}</h1><span>{subtitle}</span></div>{action}</section>;
+}
+
+function PanelTitle({ title, subtitle }: { title: string; subtitle: string }) {
+  return <div className="panel-title"><div><h2>{title}</h2><span>{subtitle}</span></div></div>;
+}
+
+function Metric({ label, value, detail, icon: Icon }: { label: string; value: number; detail: string; icon: React.ElementType }) {
+  return <div className="metric"><span><Icon /></span><div><small>{label}</small><strong>{value}</strong><em>{detail}</em></div></div>;
+}
+
+function Health({ value }: { value: string }) {
+  return <span className={"health health-" + value.replace(" ", "-").toLowerCase()}><i />{value}</span>;
+}
+
+function TaskList({ tasks, toggle, emptyText }: { tasks: Task[]; toggle: (t: Task) => void; emptyText: string }) {
+  if (!tasks.length) return emptyText ? <div className="empty-plan"><CheckCircle2 /><strong>{emptyText}</strong></div> : null;
+  return (
+    <div className="task-list">
+      {tasks.map((t) => (
+        <article className="task-row" key={t.id}>
+          <Checkbox checked={t.status === "done"} onCheckedChange={() => toggle(t)} />
+          <div className="task-copy">
+            <div className="breadcrumb"><span>{t.project || "No project"}</span></div>
+            <h3>{t.title}</h3>
+            <div className="task-meta"><span><Users />{t.owner}</span><span><Clock3 />{t.due}</span></div>
+          </div>
+          {t.impact > 0 && <div className={"impact " + (t.impact >= 3 ? "impact-high" : "")}><Users /><strong>{t.impact}</strong><span>impact</span></div>}
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function ProjectDrawer({ project, setProject, steps, onToggleStep, onAddStep, onProgress, onStatus }: {
+  project: Project | null; setProject: (p: Project | null) => void; steps: Step[];
+  onToggleStep: (s: Step) => void; onAddStep: () => void;
+  onProgress: (p: Project, v: number) => void; onStatus: (p: Project, v: string) => void;
+}) {
+  return (
+    <Sheet open={!!project} onOpenChange={(v) => !v && setProject(null)}>
+      <SheetContent className="project-sheet">
+        {project && (
+          <>
+            <span className="sheet-project-icon" style={{ background: project.color }}>{project.name[0]}</span>
+            <SheetHeader><SheetTitle>{project.name}</SheetTitle><SheetDescription>{project.description}</SheetDescription></SheetHeader>
+            <div className="sheet-meta">
+              <div><span>Owner</span><strong>{project.owner}</strong></div>
+              <div><span>Due</span><strong>{project.due}</strong></div>
+            </div>
+            <div className="sheet-progress">
+              <div><span>Progress</span><strong>{project.progress}%</strong></div>
+              <div><i style={{ width: project.progress + "%", background: project.color }} /></div>
+            </div>
+            <div className="form-row" style={{ marginTop: 14 }}>
+              <label>Status<Select value={project.status} onValueChange={(v) => onStatus(project, v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="On track">On track</SelectItem><SelectItem value="Watch">Watch</SelectItem><SelectItem value="At risk">At risk</SelectItem></SelectContent></Select></label>
+              <label>Progress %<Input type="number" min={0} max={100} value={project.progress} onChange={(e) => onProgress(project, Math.max(0, Math.min(100, Number(e.target.value) || 0)))} /></label>
+            </div>
+            <div className="plan">
+              <div className="plan-title"><h3>Steps</h3><Button size="sm" variant="outline" onClick={onAddStep}><Plus />Add step</Button></div>
+              {steps.filter((s) => s.projectId === project.id).sort((a, b) => a.position - b.position).map((s) => (
+                <button key={s.id} className="plan-step" onClick={() => onToggleStep(s)} style={{ width: "100%", textAlign: "left", cursor: "pointer", border: 0, background: "transparent" }}>
+                  <CheckCircle2 color={s.status === "done" ? "#2c8b74" : "#c9cfdb"} />
+                  <div><strong>{s.title}</strong><span>{s.assignee}</span></div>
+                  <span className={"step-status " + (s.status === "done" ? "step-done" : "")}>{s.status.replace("_", " ")}</span>
+                  <time>{s.due}</time>
+                </button>
+              ))}
+              {!steps.filter((s) => s.projectId === project.id).length && <div className="empty-plan"><CheckCircle2 /><strong>No steps yet</strong><span>Add the first one.</span></div>}
+            </div>
+          </>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function CalendarView({ tasks, projects }: { tasks: Task[]; projects: Project[] }) {
+  const now = new Date();
+  const year = now.getFullYear(), month = now.getMonth(), today = now.getDate();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstWeekday = new Date(year, month, 1).getDay();
+  const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const monthAbbr = now.toLocaleDateString("en-US", { month: "short" }).toLowerCase();
+
+  function color(t: Task) { return projects.find((p) => p.name === t.project)?.color || "#5b6fd8"; }
+  function taskDay(due: string): number | null {
+    const d = due.trim().toLowerCase();
+    if (d === "today") return today;
+    if (d === "tomorrow") return today + 1 <= daysInMonth ? today + 1 : null;
+    const iso = due.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (iso && Number(iso[1]) === year && Number(iso[2]) === month + 1) return Number(iso[3]);
+    const named = d.match(/^([a-z]{3,})\s+(\d{1,2})$/);
+    if (named && named[1].slice(0, 3) === monthAbbr) return Number(named[2]);
+    return null;
+  }
+
+  const open = tasks.filter((t) => t.status !== "done");
+  const scheduled = open.map((t) => ({ t, day: taskDay(t.due) })).filter((x): x is { t: Task; day: number } => x.day !== null);
+  const unscheduled = open.filter((t) => taskDay(t.due) === null);
+  const cells: (number | null)[] = Array.from({ length: firstWeekday + daysInMonth }, (_, i) => (i < firstWeekday ? null : i - firstWeekday + 1));
+
+  return (
+    <>
+      <PageHead eyebrow="Schedule" title="Calendar" subtitle="Open tasks by due date." />
+      <section className="calendar panel">
+        <header>{weekdays.map((d) => <span key={d}>{d}</span>)}</header>
+        <div className="calendar-grid">
+          {cells.map((d, i) => d === null ? <div className="calendar-cell blank" key={"b" + i} /> : (
+            <div className={"calendar-cell " + (d === today ? "today" : "")} key={d}>
+              <span>{d}</span>
+              {scheduled.filter((x) => x.day === d).slice(0, 3).map((x) => (
+                <i key={x.t.id} style={{ borderColor: color(x.t), background: color(x.t) + "14" }}>{x.t.title}</i>
+              ))}
+            </div>
+          ))}
+        </div>
+      </section>
+      {unscheduled.length > 0 && (
+        <div className="calendar-legend" style={{ marginTop: 16 }}>
+          <strong style={{ fontSize: ".72rem", color: "#7b8599" }}>Unscheduled: </strong>
+          {unscheduled.map((t) => <span key={t.id}><i style={{ background: color(t) }} />{t.title}</span>)}
+        </div>
+      )}
+    </>
+  );
+}
