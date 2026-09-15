@@ -8,7 +8,7 @@ import * as schema from "./schema";
 // created here, idempotently, the first time a request needs it.
 let ready: Promise<void> | null = null;
 
-async function ensureSchema(db: ReturnType<typeof drizzle<typeof schema>>) {
+async function ensureSchema(db: { execute: (query: ReturnType<typeof sql>) => Promise<unknown> }) {
   await db.execute(sql`CREATE TABLE IF NOT EXISTS projects (
     id serial PRIMARY KEY,
     name text NOT NULL,
