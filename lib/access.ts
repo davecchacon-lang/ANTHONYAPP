@@ -1,12 +1,8 @@
 import { getUser } from "@netlify/identity";
-import { eq } from "drizzle-orm";
-import { getDb } from "@/db";
-import { members } from "@/db/schema";
 
 export type Identity = { email: string; name: string };
 
 // Reads the signed-in Netlify Identity user from the request's nf_jwt cookie.
-// getUser() needs no arguments — the Netlify runtime supplies request context.
 export async function getCurrentIdentity(): Promise<Identity | null> {
   const user = await getUser();
   if (!user?.email) return null;
@@ -16,20 +12,10 @@ export async function getCurrentIdentity(): Promise<Identity | null> {
   };
 }
 
-// Every workspace member is matched to their Netlify Identity session by email.
-// Throws "FORBIDDEN" (mapped to a 403 by every route that calls this) when the
-// visitor isn't signed in, isn't a workspace member, or holds the wrong role.
-export async function requireWorkspaceRole(allowedRoles: string[]) {
+// Everyone who is signed in can use the workspace — there is no separate
+// role/member system to manage.
+export async function requireUser(): Promise<Identity> {
   const identity = await getCurrentIdentity();
-  if (!identity) throw new Error("FORBIDDEN");
-
-  const db = getDb();
-  const [member] = await db
-    .select()
-    .from(members)
-    .where(eq(members.email, identity.email))
-    .limit(1);
-
-  if (!member || !allowedRoles.includes(member.role)) throw new Error("FORBIDDEN");
-  return member;
+  if (!identity) throw new Error("UNAUTHORIZED");
+  return identity;
 }
